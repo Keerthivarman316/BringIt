@@ -25,9 +25,10 @@ export const createMatch = async (req, res) => {
        return res.status(400).json({ message: 'Order is not available for matching or does not exist.' });
     }
 
-    // Create Match & Update Order status in a transaction
-    const [match, updatedOrder] = await prisma.$transaction([
-      prisma.match.create({
+    // Create Match, Update Order, and Freeze Credits in a transaction
+    const match = await prisma.$transaction(async (tx) => {
+      // 1. Create the Match
+      const m = await tx.match.create({
         data: {
           tripId,
           orderId,
@@ -35,12 +36,40 @@ export const createMatch = async (req, res) => {
           status: 'ACCEPTED',
           acceptedAt: new Date()
         }
-      }),
-      prisma.order.update({
+      });
+
+      // 2. Update Order Status
+      await tx.order.update({
         where: { id: orderId },
         data: { status: 'MATCHED' }
-      })
-    ]);
+      });
+
+      // 3. Freeze Credits from Requester
+      const requester = await tx.user.findUnique({ where: { id: order.requesterId } });
+      const deliveryFee = order.deliveryFee;
+
+      if (requester.creditBalance < deliveryFee) {
+        throw new Error('Requester has insufficient credits to cover the delivery fee');
+      }
+
+      await tx.creditTransaction.create({
+        data: {
+          userId: requester.id,
+          type: 'FREEZE',
+          amount: -deliveryFee,
+          balanceAfter: requester.creditBalance - deliveryFee,
+          referenceId: orderId,
+          note: `Funds frozen for delivery match ${m.id}`,
+        }
+      });
+
+      await tx.user.update({
+        where: { id: requester.id },
+        data: { creditBalance: { decrement: deliveryFee } }
+      });
+
+      return m;
+    });
 
     res.status(201).json(match);
 

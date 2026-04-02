@@ -62,9 +62,7 @@ export const completeDelivery = async (req, res) => {
     const deliveryFee = order.deliveryFee;
     const carrierId = order.match.carrierId;
 
-    // Escrow transaction: 
-    // Usually, Requester's balance decs, Carrier's balance incs
-    // Atomic Prisma Transaction to secure double-entry bookkeeping!
+    // Atomic Prisma Transaction to secure double-entry bookkeeping and Carbon tracking
     await prisma.$transaction(async (tx) => {
       // 1. Update Order Status
       await tx.order.update({
@@ -78,24 +76,12 @@ export const completeDelivery = async (req, res) => {
         data: { status: 'COMPLETED', completedAt: new Date() }
       });
 
-      // 3. Deduct from Requester
-      await tx.creditTransaction.create({
-        data: {
-          userId: req.user.id,
-          type: 'SPEND_REQUEST',
-          amount: -deliveryFee,
-          balanceAfter: order.requester.creditBalance - deliveryFee,
-          referenceId: orderId,
-          note: 'Paid delivery fee'
-        }
-      });
-      await tx.user.update({
-        where: { id: req.user.id },
-        data: { creditBalance: { decrement: deliveryFee } }
-      });
-
-      // 4. Pay Carrier
+      // 3. Pay Carrier
       const carrier = await tx.user.findUnique({ where: { id: carrierId } });
+      
+      // Note: We don't deduct from Requester here anymore because the 'FREEZE' 
+      // logic in match.controller already decremented their balance at acceptance.
+      
       await tx.creditTransaction.create({
         data: {
           userId: carrierId,
@@ -103,16 +89,30 @@ export const completeDelivery = async (req, res) => {
           amount: deliveryFee,
           balanceAfter: carrier.creditBalance + deliveryFee,
           referenceId: orderId,
-          note: 'Earned delivery fee'
+          note: `Escrow release: Earned fee for delivering ${order.itemName}`
         }
       });
       
-      // Increment carrier score and balance
+      // Increment carrier balance and history
       await tx.user.update({
         where: { id: carrierId },
         data: {
           creditBalance: { increment: deliveryFee },
           deliveryCount: { increment: 1 }
+        }
+      });
+
+      // 4. Log Carbon Footprint Savings (Phase 5 Insights)
+      // Every peer delivery replaces a solo trip (approx 3km saved)
+      const kmSaved = 3.0;
+      const co2SavedGrams = kmSaved * 120.0; // ~120g CO2 per km for a car
+
+      await tx.carbonLog.create({
+        data: {
+          matchId: order.match.id,
+          userId: carrierId,
+          kmSaved,
+          co2SavedGrams
         }
       });
     });

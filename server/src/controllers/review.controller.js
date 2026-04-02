@@ -44,17 +44,30 @@ export const createReview = async (req, res) => {
         }
       });
 
-      // Simple Trust Graph recalculation (Average for MVP)
-      // Real implementation would be heavily weighted math using `reviewerTrustScoreAtTime`
+      // Advanced Trust Graph recalculation (Weighted by rater's own trust)
       const allReviews = await tx.review.findMany({ 
         where: { reviewedUserId: match.carrierId } 
       });
-      const avg = allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length;
       
-      // Update Carrier graph
+      const weightedSum = allReviews.reduce((sum, r) => sum + (r.rating * r.reviewerTrustScoreAtTime), 0);
+      const totalWeight = allReviews.reduce((sum, r) => sum + r.reviewerTrustScoreAtTime, 0);
+      const weightedAvg = totalWeight > 0 ? weightedSum / totalWeight : 1.0;
+      
+      // Fetch current carrier to check delivery count for badge logic
+      const currentCarrier = await tx.user.findUnique({ where: { id: match.carrierId } });
+      
+      let newTier = currentCarrier.verificationTier;
+      if (currentCarrier.deliveryCount >= 20 && newTier !== 'TRUSTED_CARRIER') {
+        newTier = 'TRUSTED_CARRIER';
+      }
+
+      // Update Carrier graph and tier
       const updatedUser = await tx.user.update({
         where: { id: match.carrierId },
-        data: { trustScore: avg }
+        data: { 
+          trustScore: weightedAvg,
+          verificationTier: newTier
+        }
       });
 
       return [rev, updatedUser];
