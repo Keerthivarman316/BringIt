@@ -2,7 +2,11 @@ import express from "express";
 import cors from "cors";
 import { createServer } from "http";
 import { Server } from "socket.io";
+// Routes
 import authRoutes from './src/routes/auth.routes.js';
+import dropZoneRoutes from './src/routes/dropzone.routes.js';
+import tripRoutes from './src/routes/trip.routes.js';
+import orderRoutes from './src/routes/order.routes.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -18,6 +22,9 @@ app.use(express.json());
 
 // Main sub-routes
 app.use('/api/auth', authRoutes);
+app.use('/api/dropzones', dropZoneRoutes);
+app.use('/api/trips', tripRoutes);
+app.use('/api/orders', orderRoutes);
 
 app.get("/", (req, res) => {
     res.send("BringIt API running 🚀");
