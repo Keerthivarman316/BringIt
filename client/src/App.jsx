@@ -4,11 +4,12 @@ import { io } from 'socket.io-client'
 import axios from 'axios'
 import Login from './components/Login'
 import Register from './components/Register'
-import LiveMap from './components/LiveMap'
+import RequesterDashboard from './components/RequesterDashboard'
+import CarrierDashboard from './components/CarrierDashboard'
 
 const MainContent = ({ socketStatus, user, handleLogout }) => {
   return (
-    <div className="flex flex-col gap-4 w-full max-w-2xl mx-auto">
+    <div className="flex flex-col gap-4 w-full max-w-4xl mx-auto">
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <span className="font-medium text-gray-700">WebSocket Status:</span>
@@ -22,9 +23,14 @@ const MainContent = ({ socketStatus, user, handleLogout }) => {
         {user ? (
           <div className="mt-4 flex flex-col justify-center items-center">
             <h2 className="text-2xl font-bold text-gray-800">Welcome, {user.name}!</h2>
-            <p className="text-gray-500 mb-4">Role: {user.role}</p>
-            <button onClick={handleLogout} className="bg-red-50 hover:bg-red-100 text-red-600 font-medium py-2 px-6 rounded-lg transition mb-4">Logout</button>
-            <LiveMap tripId="" />
+            <div className="flex gap-4 items-center mb-6">
+              <span className="text-gray-500 font-medium">Logged in as {user.role}</span>
+              <button onClick={handleLogout} className="bg-red-50 hover:bg-red-100 text-red-600 font-medium py-1 px-4 rounded-lg transition text-sm text-center">Logout</button>
+            </div>
+            
+            {/* Dynamic Dashboard Injection */}
+            {user.role === 'REQUESTER' && <RequesterDashboard />}
+            {user.role === 'CARRIER' && <CarrierDashboard />}
           </div>
         ) : (
           <div className="mt-8 grid grid-cols-2 gap-4">

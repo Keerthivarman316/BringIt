@@ -97,3 +97,20 @@ export const updateOrder = async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 };
+
+export const getPendingOrders = async (req, res) => {
+  try {
+    const orders = await prisma.order.findMany({
+      where: { status: 'PENDING' },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        dropZone: true,
+        requester: { select: { name: true, trustScore: true } }
+      }
+    });
+    res.json(orders);
+  } catch (error) {
+    console.error('Error fetching pending orders:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
