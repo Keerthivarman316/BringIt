@@ -4,7 +4,10 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// --- LEAFLET ASSET STABILIZATION (Vite/React Fix) ---
+// Import Leaflet CSS (CRITICAL for map rendering)
+import 'leaflet/dist/leaflet.css';
+
+// --- LEAFLET ASSET FIX (Vite/React) ---
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -31,8 +34,8 @@ const LiveMap = ({ tripId }) => {
   const [carrierLocation, setCarrierLocation] = useState(null);
   const [status, setStatus] = useState('OFFLINE');
 
-  // Default Campus Coordinates (Placeholder)
-  const defaultCenter = [12.8406, 80.1534]; // VIT Chennai Grid
+  // Default Campus Coordinates (VIT Chennai)
+  const defaultCenter = [12.8406, 80.1534];
 
   useEffect(() => {
     if (!tripId) return;
@@ -74,7 +77,7 @@ const LiveMap = ({ tripId }) => {
           <>
             <Marker position={[carrierLocation.lat, carrierLocation.lng]}>
               <Popup className="custom-popup">
-                <div className="text-[10px] font-mono text-white font-bold p-1 uppercase">GRID_OPERATIVE_ACTIVE</div>
+                <div className="text-[10px] font-mono text-white font-bold p-1 uppercase">Delivery partner is here</div>
               </Popup>
             </Marker>
             <RecenterMap lat={carrierLocation.lat} lng={carrierLocation.lng} />
@@ -98,8 +101,8 @@ const LiveMap = ({ tripId }) => {
                         <div className="w-3 h-3 bg-brand-cyan rounded-full shadow-[0_0_15px_rgba(0,242,255,0.8)]" />
                      </div>
                      <div className="space-y-2">
-                        <div className="text-[10px] font-mono text-white font-bold tracking-[0.3em] uppercase">Sector Scan In Progress</div>
-                        <div className="text-[8px] font-mono text-muted uppercase tracking-[0.1em]">Establishing operative downlink...</div>
+                        <div className="text-[10px] font-mono text-white font-bold tracking-[0.3em] uppercase">Waiting for location...</div>
+                        <div className="text-[8px] font-mono text-muted uppercase tracking-[0.1em]">The map will update when the delivery partner shares their location.</div>
                      </div>
                   </div>
                </motion.div>
@@ -109,11 +112,11 @@ const LiveMap = ({ tripId }) => {
          <div className="absolute top-4 right-4 flex flex-col gap-2 items-end">
             <div className="bg-bg-deep/80 backdrop-blur px-3 py-1.5 rounded-lg border border-white/5 flex items-center gap-2">
                <div className={cn("w-1.5 h-1.5 rounded-full shadow-lg", status === 'CONNECTED' ? "bg-brand-green shadow-brand-green/40" : "bg-brand-red shadow-brand-red/40")} />
-               <span className="text-[9px] font-mono text-white font-bold uppercase tracking-widest">{status}</span>
+               <span className="text-[9px] font-mono text-white font-bold uppercase tracking-widest">{status === 'CONNECTED' ? 'Online' : 'Offline'}</span>
             </div>
             {carrierLocation && (
               <div className="bg-bg-deep/80 backdrop-blur px-3 py-1.5 rounded-lg border border-white/5 text-[8px] font-mono text-muted uppercase tracking-widest">
-                TS: {new Date(carrierLocation.timestamp).toLocaleTimeString()}
+                Updated: {new Date(carrierLocation.timestamp).toLocaleTimeString()}
               </div>
             )}
          </div>

@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, ShieldCheck, Mail, Lock, ShoppingBag, Briefcase, ChevronRight, Check, ArrowLeft } from 'lucide-react';
+import { User, Mail, Lock, ShoppingBag, Briefcase, ChevronRight, Check, ArrowLeft, UserPlus } from 'lucide-react';
 import axios from 'axios';
 
 const Register = ({ setUser }) => {
@@ -10,17 +10,8 @@ const Register = ({ setUser }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('REQUESTER');
-  const [isDetected, setIsDetected] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
-
-  useEffect(() => {
-    if (email.includes('@') && email.split('@')[1].length > 3) {
-      setIsDetected(true);
-    } else {
-      setIsDetected(false);
-    }
-  }, [email]);
 
   const handleRegister = async () => {
     setError('');
@@ -39,14 +30,14 @@ const Register = ({ setUser }) => {
         : '/dashboard/requester';
       navigate(dashboardPath);
     } catch (err) {
-      setError(err.response?.data?.message || 'Enrollment failed.');
+      setError(err.response?.data?.message || 'Registration failed. Please try again.');
       setStep(1);
     }
   };
 
   const steps = [
-    { id: 1, label: 'IDENTITY' },
-    { id: 2, label: 'ASSIGNMENT' },
+    { id: 1, label: 'YOUR DETAILS' },
+    { id: 2, label: 'CHOOSE ROLE' },
   ];
 
   return (
@@ -72,7 +63,7 @@ const Register = ({ setUser }) => {
             ))}
           </div>
           {step === 1 ? (
-             <Link to="/login" className="text-[10px] font-mono tracking-widest text-muted hover:text-brand-cyan transition-colors">ABORT_AND_LOGIN</Link>
+             <Link to="/login" className="text-[10px] font-mono tracking-widest text-muted hover:text-brand-cyan transition-colors">BACK TO LOGIN</Link>
           ) : (
              <button onClick={() => setStep(1)} className="flex items-center gap-2 text-[10px] font-mono tracking-widest text-muted hover:text-white"><ArrowLeft size={12} /> BACK</button>
           )}
@@ -89,8 +80,8 @@ const Register = ({ setUser }) => {
                 className="space-y-8"
               >
                 <div className="space-y-2">
-                  <h2 className="text-4xl font-display text-white uppercase tracking-tight italic">Enrollment</h2>
-                  <p className="text-muted text-sm font-body">Initialize your credentials for the BringIt operative network.</p>
+                  <h2 className="text-4xl font-display text-white uppercase tracking-tight italic">Register</h2>
+                  <p className="text-muted text-sm font-body">Create your BringIt account to get started.</p>
                 </div>
 
                 <div className="space-y-4">
@@ -101,7 +92,7 @@ const Register = ({ setUser }) => {
                       placeholder="Full Name"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className="w-full bg-bg-surface/50 border border-white/5 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-brand-cyan/50 focus:bg-bg-card transition-all text-white font-medium"
+                      className="w-full bg-bg-surface/50 border border-white/5 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-brand-cyan/50 focus:bg-bg-card hover:border-white/10 transition-all text-white font-medium"
                     />
                   </div>
 
@@ -109,32 +100,21 @@ const Register = ({ setUser }) => {
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-muted group-focus-within:text-brand-cyan transition-colors" size={18} />
                     <input 
                       type="email" 
-                      placeholder="University Email"
+                      placeholder="Email address"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full bg-bg-surface/50 border border-white/5 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-brand-cyan/50 focus:bg-bg-card transition-all text-white font-medium"
+                      className="w-full bg-bg-surface/50 border border-white/5 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-brand-cyan/50 focus:bg-bg-card hover:border-white/10 transition-all text-white font-medium"
                     />
-                    <AnimatePresence>
-                      {isDetected && (
-                        <motion.div 
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 bg-brand-cyan/10 text-brand-cyan text-[8px] font-bold px-2 py-1 rounded-md border border-brand-cyan/20 tracking-tighter"
-                        >
-                          LOC_VIT_CHENNAI
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
                   </div>
 
                   <div className="relative group">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-muted group-focus-within:text-brand-cyan transition-colors" size={18} />
                     <input 
                       type="password" 
-                      placeholder="Secure Key Phrase"
+                      placeholder="Password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full bg-bg-surface/50 border border-white/5 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-brand-cyan/50 focus:bg-bg-card transition-all text-white font-medium"
+                      className="w-full bg-bg-surface/50 border border-white/5 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-brand-cyan/50 focus:bg-bg-card hover:border-white/10 transition-all text-white font-medium"
                     />
                   </div>
                 </div>
@@ -143,9 +123,9 @@ const Register = ({ setUser }) => {
 
                 <button 
                   onClick={() => name && email && password && setStep(2)}
-                  className="w-full bg-white text-bg-deep font-black py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-brand-cyan transition-all shadow-xl group"
+                  className="w-full bg-white text-bg-deep font-black py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-brand-cyan hover:shadow-lg hover:shadow-brand-cyan/20 transition-all shadow-xl group"
                 >
-                  PROCEED TO ASSIGNMENT <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                  NEXT: CHOOSE ROLE <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
                 </button>
               </motion.div>
             ) : (
@@ -157,8 +137,8 @@ const Register = ({ setUser }) => {
                 className="space-y-8"
               >
                 <div className="space-y-2">
-                  <h2 className="text-4xl font-display text-white uppercase tracking-tight italic">Assignment</h2>
-                  <p className="text-muted text-sm font-body">Select your operative specialization on the grid.</p>
+                  <h2 className="text-4xl font-display text-white uppercase tracking-tight italic">Choose Your Role</h2>
+                  <p className="text-muted text-sm font-body">How would you like to use BringIt?</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -174,8 +154,8 @@ const Register = ({ setUser }) => {
                       <ShoppingBag size={32} />
                     </div>
                     <div className="space-y-1">
-                      <div className={`font-heading font-bold text-lg ${role === 'REQUESTER' ? 'text-white' : 'text-muted'}`}>REQUESTER</div>
-                      <div className="text-[10px] font-mono tracking-widest text-muted opacity-60 uppercase">GET ANYTHING</div>
+                      <div className={`font-heading font-bold text-lg ${role === 'REQUESTER' ? 'text-white' : 'text-muted'}`}>Customer</div>
+                      <div className="text-[10px] font-mono tracking-widest text-muted opacity-60 uppercase">Order anything</div>
                     </div>
                   </button>
 
@@ -191,8 +171,8 @@ const Register = ({ setUser }) => {
                       <Briefcase size={32} />
                     </div>
                     <div className="space-y-1">
-                      <div className={`font-heading font-bold text-lg ${role === 'CARRIER' ? 'text-white' : 'text-muted'}`}>CARRIER</div>
-                      <div className="text-[10px] font-mono tracking-widest text-muted opacity-60 uppercase">EARN CREDITS</div>
+                      <div className={`font-heading font-bold text-lg ${role === 'CARRIER' ? 'text-white' : 'text-muted'}`}>Delivery Partner</div>
+                      <div className="text-[10px] font-mono tracking-widest text-muted opacity-60 uppercase">Earn money</div>
                     </div>
                   </button>
                 </div>
@@ -200,9 +180,9 @@ const Register = ({ setUser }) => {
                 <div className="pt-4 border-t border-white/5 space-y-4">
                   <button 
                     onClick={handleRegister}
-                    className="w-full bg-white text-bg-deep font-black py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-brand-cyan transition-all shadow-xl group"
+                    className="w-full bg-white text-bg-deep font-black py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-brand-cyan hover:shadow-lg hover:shadow-brand-cyan/20 transition-all shadow-xl group"
                   >
-                    FINALIZE ENROLLMENT <Check size={20} />
+                    CREATE ACCOUNT <Check size={20} />
                   </button>
                 </div>
               </motion.div>
