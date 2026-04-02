@@ -59,10 +59,7 @@ export const completeDelivery = async (req, res) => {
       return res.status(400).json({ message: 'Order must be MATCHED or PICKED_UP to be delivered' });
     }
 
-    const deliveryFee = order.deliveryFee;
-    const carrierId = order.match.carrierId;
-
-    // Atomic Prisma Transaction to secure double-entry bookkeeping and Carbon tracking
+    // Atomic Prisma Transaction to secure status updates and Carbon tracking
     await prisma.$transaction(async (tx) => {
       // 1. Update Order Status
       await tx.order.update({
@@ -76,28 +73,10 @@ export const completeDelivery = async (req, res) => {
         data: { status: 'COMPLETED', completedAt: new Date() }
       });
 
-      // 3. Pay Carrier
-      const carrier = await tx.user.findUnique({ where: { id: carrierId } });
-      
-      // Note: We don't deduct from Requester here anymore because the 'FREEZE' 
-      // logic in match.controller already decremented their balance at acceptance.
-      
-      await tx.creditTransaction.create({
-        data: {
-          userId: carrierId,
-          type: 'EARN_DELIVERY',
-          amount: deliveryFee,
-          balanceAfter: carrier.creditBalance + deliveryFee,
-          referenceId: orderId,
-          note: `Escrow release: Earned fee for delivering ${order.itemName}`
-        }
-      });
-      
-      // Increment carrier balance and history
+      // 3. Update Carrier Stats
       await tx.user.update({
         where: { id: carrierId },
         data: {
-          creditBalance: { increment: deliveryFee },
           deliveryCount: { increment: 1 }
         }
       });

@@ -61,14 +61,10 @@ enum GroupOrderStatus {
   CANCELLED
 }
 
-enum CreditTxType {
-  EARN_DELIVERY // carrier earns credits
-  SPEND_REQUEST // requester spends credits
-  REFUND // cancelled order refund
-  BONUS // platform bonus
-  FREEZE // escrow freeze
-  UNFREEZE // escrow release
-  PENALTY // dispute penalty
+enum PaymentMethod {
+  COD
+  UPI
+  DEBIT_CARD
 }
 
 enum NotificationType {
@@ -103,9 +99,7 @@ model User {
   trustScore    Float @default(1.0) // weighted by rater's own trust score
   deliveryCount Int   @default(0) // increments on each successful delivery
 
-  // Credit wallet (balance derived from ledger, cached here for fast reads)
-  creditBalance Int @default(0)
-
+  // Credit wallet (No longer used - status points only)
   profilePicUrl String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -118,7 +112,6 @@ model User {
   reviewsGiven    Review[] @relation("ReviewsGiven")
   reviewsReceived Review[] @relation("ReviewsReceived")
 
-  creditTransactions  CreditTransaction[]
   notifications       Notification[]
   carbonContributions CarbonLog[]
 
@@ -178,11 +171,12 @@ model Order {
   storeLat        Float?
   storeLng        Float?
 
-  budget       Int // in BringIt credits
-  deliveryFee  Int // in BringIt credits
+  budget       Int // in local currency
+  deliveryFee  Int // in local currency
   urgencyLevel UrgencyLevel @default(NORMAL) // URGENT bumps to top of feed
 
-  status OrderStatus @default(PENDING)
+  status        OrderStatus   @default(PENDING)
+  paymentMethod PaymentMethod @default(COD)
 
   // Drop zone delivery
   dropZoneId       String?
@@ -283,30 +277,6 @@ model Review {
 
   @@index([reviewedUserId])
   @@index([reviewerId])
-}
-
-// ─────────────────────────────────────────────
-// CREDIT LEDGER  (Double-entry accounting)
-// Every credit move is a journal entry – balance is never directly mutated
-// ─────────────────────────────────────────────
-
-model CreditTransaction {
-  id     String @id @default(cuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id])
-
-  type         CreditTxType
-  amount       Int // positive = credit in, negative = credit out
-  balanceAfter Int // snapshot for fast audit
-
-  referenceId String? // orderId / matchId / etc.
-  note        String?
-
-  createdAt DateTime @default(now())
-
-  @@index([userId])
-  @@index([type])
-  @@index([createdAt])
 }
 
 // ─────────────────────────────────────────────

@@ -7,6 +7,7 @@ const RequesterDashboard = () => {
   const [budget, setBudget] = useState('');
   const [deliveryFee, setDeliveryFee] = useState('');
   const [storeName, setStoreName] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('COD');
 
   const fetchOrders = async () => {
     try {
@@ -30,11 +31,12 @@ const RequesterDashboard = () => {
         itemName,
         budget: Number(budget),
         deliveryFee: Number(deliveryFee),
-        storeName
+        storeName,
+        paymentMethod
       }, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
-      setItemName(''); setBudget(''); setDeliveryFee(''); setStoreName('');
+      setItemName(''); setBudget(''); setDeliveryFee(''); setStoreName(''); setPaymentMethod('COD');
       fetchOrders(); // refresh
     } catch (err) {
       alert('Error placing order');
@@ -44,32 +46,38 @@ const RequesterDashboard = () => {
 
   return (
     <div className="w-full text-left flex flex-col gap-8">
-      {/* Wallet Widget */}
-      <div className="bg-white/40 backdrop-blur-md p-4 rounded-xl shadow-sm border border-white/60 flex justify-between items-center transition hover:bg-white/60">
-        <span className="font-bold text-gray-700 text-lg">My Wallet</span>
-        <span className="text-2xl font-extrabold text-blue-600">100 CR</span> {/* We'll fetch real balance later */}
-      </div>
-
       {/* Create Order Form */}
       <div className="bg-white/80 backdrop-blur-xl p-6 rounded-2xl shadow-lg border border-white/60">
         <h2 className="text-xl font-bold mb-4 text-gray-800 tracking-tight">Place a New Order</h2>
         <form onSubmit={handlePlaceOrder} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-4">
-            <div>
+            <div className="col-span-2 md:col-span-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">Item Name</label>
               <input type="text" required value={itemName} onChange={e => setItemName(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded outline-none focus:border-blue-500" placeholder="e.g. 2x Iced Lattes" />
             </div>
-            <div>
+            <div className="col-span-2 md:col-span-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">Store / Location</label>
               <input type="text" value={storeName} onChange={e => setStoreName(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded outline-none focus:border-blue-500" placeholder="e.g. Starbucks Campus" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Item Budget ($)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Item Budget ($ Cash)</label>
               <input type="number" required value={budget} onChange={e => setBudget(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded outline-none focus:border-blue-500" placeholder="Max price of items" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Fee ($ Reward)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Reward ($ Cash)</label>
               <input type="number" required value={deliveryFee} onChange={e => setDeliveryFee(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded outline-none focus:border-blue-500" placeholder="What you pay the carrier" />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+              <select 
+                value={paymentMethod} 
+                onChange={e => setPaymentMethod(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded outline-none focus:border-blue-500"
+              >
+                <option value="COD">Cash on Delivery (COD)</option>
+                <option value="UPI" disabled>UPI (Coming Soon)</option>
+                <option value="DEBIT_CARD" disabled>Debit Card (Coming Soon)</option>
+              </select>
             </div>
           </div>
           <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mt-2">
@@ -91,7 +99,8 @@ const RequesterDashboard = () => {
                   <div>
                     <div className="font-bold text-gray-800 text-lg">{order.itemName}</div>
                     <div className="text-sm text-gray-500">From: {order.storeName || 'Anywhere'}</div>
-                    <div className="text-sm text-gray-500">Reward: <span className="font-semibold text-green-600">${order.deliveryFee}</span></div>
+                    <div className="text-sm text-gray-500">Payment: <span className="font-semibold text-indigo-600">{order.paymentMethod}</span></div>
+                    <div className="text-sm text-gray-500">Total Cash to Pay: <span className="font-semibold text-green-600">${Number(order.budget) + Number(order.deliveryFee)}</span></div>
                   </div>
                   <div className="text-right flex flex-col items-end gap-2">
                     <span className={`px-3 py-1 rounded-full text-xs font-bold ${
@@ -119,7 +128,7 @@ const RequesterDashboard = () => {
                         fetchOrders();
                       } catch(e) { alert('Error confirming delivery!'); }
                     }} className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition">
-                      Confirm Receipt & Unlock Escrow
+                      Confirm Receipt & Finalize Delivery
                     </button>
                   </div>
                 )}

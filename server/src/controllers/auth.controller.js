@@ -18,29 +18,14 @@ export const register = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    // Create the user and their initial credit transaction in an atomic operation
-    const newUser = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: {
-          name,
-          email,
-          passwordHash,
-          role: role || 'REQUESTER',
-          creditBalance: 100,
-        },
-      });
-
-      await tx.creditTransaction.create({
-        data: {
-          userId: user.id,
-          type: 'BONUS',
-          amount: 100,
-          balanceAfter: 100,
-          note: 'Welcome bonus credit reward!',
-        },
-      });
-
-      return user;
+    // Create the user
+    const newUser = await prisma.user.create({
+      data: {
+        name,
+        email,
+        passwordHash,
+        role: role || 'REQUESTER',
+      },
     });
 
     // Generate JWT token

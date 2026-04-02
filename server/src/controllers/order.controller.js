@@ -5,7 +5,8 @@ export const createOrder = async (req, res) => {
     const { 
       itemName, itemDescription, quantity, 
       storeName, storeAddress, storeLat, storeLng, 
-      budget, deliveryFee, urgencyLevel, dropZoneId 
+      budget, deliveryFee, urgencyLevel, dropZoneId,
+      paymentMethod
     } = req.body;
 
     if (!itemName || budget === undefined || deliveryFee === undefined) {
@@ -25,7 +26,8 @@ export const createOrder = async (req, res) => {
         budget: Number(budget),
         deliveryFee: Number(deliveryFee),
         urgencyLevel: urgencyLevel || 'NORMAL',
-        dropZoneId: dropZoneId || null
+        dropZoneId: dropZoneId || null,
+        paymentMethod: paymentMethod || 'COD'
       }
     });
 
