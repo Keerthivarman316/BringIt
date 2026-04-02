@@ -13,14 +13,27 @@ export const createTrip = async (req, res) => {
       return res.status(400).json({ message: 'Missing required trip fields' });
     }
 
+    const depDate = new Date(departureTime);
+    if (isNaN(depDate.getTime())) {
+      return res.status(400).json({ message: 'Invalid departure time' });
+    }
+
+    let retDate = null;
+    if (returnTime && returnTime.trim() !== '') {
+      retDate = new Date(returnTime);
+      if (isNaN(retDate.getTime())) {
+        return res.status(400).json({ message: 'Invalid return time' });
+      }
+    }
+
     const trip = await prisma.trip.create({
       data: {
         carrierId: req.user.id,
         destination,
-        destinationLat,
-        destinationLng,
-        departureTime: new Date(departureTime),
-        returnTime: returnTime ? new Date(returnTime) : null,
+        destinationLat: destinationLat ? Number(destinationLat) : null,
+        destinationLng: destinationLng ? Number(destinationLng) : null,
+        departureTime: depDate,
+        returnTime: retDate,
         capacity: Number(capacity)
       }
     });
@@ -28,7 +41,7 @@ export const createTrip = async (req, res) => {
     res.status(201).json(trip);
   } catch (error) {
     console.error('Error creating Trip:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ message: 'Internal server error', error: error.message });
   }
 };
 
