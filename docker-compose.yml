@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: bringit_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: bringit_user
+      POSTGRES_PASSWORD: bringit_pass
+      POSTGRES_DB: bringit_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
