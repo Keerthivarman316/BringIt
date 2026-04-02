@@ -8,6 +8,8 @@ import dropZoneRoutes from './src/routes/dropzone.routes.js';
 import tripRoutes from './src/routes/trip.routes.js';
 import orderRoutes from './src/routes/order.routes.js';
 import matchRoutes from './src/routes/match.routes.js';
+import deliveryRoutes from './src/routes/delivery.routes.js';
+import reviewRoutes from './src/routes/review.routes.js';
 import { prisma } from './src/lib/prisma.js';
 
 const app = express();
@@ -28,6 +30,8 @@ app.use('/api/dropzones', dropZoneRoutes);
 app.use('/api/trips', tripRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/matches', matchRoutes);
+app.use('/api/delivery', deliveryRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 app.get("/", (req, res) => {
     res.send("BringIt API running 🚀");

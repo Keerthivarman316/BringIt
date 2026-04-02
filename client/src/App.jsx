@@ -86,8 +86,8 @@ function App() {
         
         <Routes>
           <Route path="/" element={<MainContent socketStatus={socketStatus} user={user} handleLogout={handleLogout} />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+          <Route path="/login" element={<Login setUser={setUser} />} />
+          <Route path="/register" element={<Register setUser={setUser} />} />
         </Routes>
       </div>
     </Router>

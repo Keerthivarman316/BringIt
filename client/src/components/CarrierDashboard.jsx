@@ -71,9 +71,15 @@ const CarrierDashboard = () => {
 
   return (
     <div className="w-full text-left flex flex-col gap-8">
+      {/* Wallet Widget */}
+      <div className="bg-white/40 backdrop-blur-md p-4 rounded-xl shadow-sm border border-white/60 flex justify-between items-center transition hover:bg-white/60">
+        <span className="font-bold text-gray-700 text-lg">My Wallet</span>
+        <span className="text-2xl font-extrabold text-green-600">0 CR</span> {/* We'll fetch real balance later */}
+      </div>
+
       {/* Create Trip Form */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <h2 className="text-xl font-bold mb-4 text-gray-800">Declare a Trip</h2>
+      <div className="bg-white/80 backdrop-blur-xl p-6 rounded-2xl shadow-lg border border-white">
+        <h2 className="text-xl font-bold mb-4 text-gray-800 tracking-tight">Declare a Trip</h2>
         <form onSubmit={handleCreateTrip} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div>
@@ -125,19 +131,35 @@ const CarrierDashboard = () => {
 
         {/* My Active Trips */}
         <div>
-          <h2 className="text-xl font-bold mb-4 text-gray-800">My Trips</h2>
+          <h2 className="text-xl font-bold mb-4 text-gray-800 tracking-tight">My Trips</h2>
           {myTrips.length === 0 ? (
             <p className="text-gray-500 text-sm">No recorded trips.</p>
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-4">
               {myTrips.map(trip => (
-                <div key={trip.id} className="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
-                  <div className="font-bold text-indigo-900">Trip to {trip.destination}</div>
-                  <div className="text-sm text-indigo-700 mt-1">
+                <div key={trip.id} className="bg-indigo-50/80 backdrop-blur p-5 rounded-xl border border-indigo-200/50 shadow-sm">
+                  <div className="font-bold text-indigo-900 text-lg">Trip to {trip.destination}</div>
+                  <div className="text-sm text-indigo-700 mt-1 mb-3">
                     Leaves: {new Date(trip.departureTime).toLocaleString()}
                   </div>
-                  <div className="mt-2 pt-2 border-t border-indigo-200 text-sm">
-                    <strong>Assigned Orders:</strong> {trip.matches?.length || 0}
+                  <div className="pt-3 border-t border-indigo-200 flex flex-col gap-2">
+                    <strong className="text-sm text-indigo-900">Deliveries:</strong>
+                    {trip.matches?.length === 0 && <span className="text-xs text-indigo-400">None assigned yet</span>}
+                    {trip.matches?.map(match => (
+                      <div key={match.id} className="bg-white/60 p-3 rounded-lg flex justify-between items-center shadow-sm">
+                        <span className="text-xs font-semibold text-gray-700">{match.order?.itemName || 'Item'}</span>
+                        {match.order?.status === 'MATCHED' ? (
+                          <button onClick={async () => {
+                            try {
+                              await axios.post('http://localhost:5000/api/delivery/pickup', { orderId: match.orderId }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }});
+                              fetchData();
+                            } catch(e) { alert('Error picking up item'); }
+                          }} className="text-xs bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-1 px-3 rounded-full transition">Log Pickup</button>
+                        ) : (
+                          <span className="text-xs font-bold text-green-600 px-3 py-1 bg-green-100 rounded-full">{match.order?.status}</span>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}
