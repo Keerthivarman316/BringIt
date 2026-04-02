@@ -7,6 +7,8 @@ import authRoutes from './src/routes/auth.routes.js';
 import dropZoneRoutes from './src/routes/dropzone.routes.js';
 import tripRoutes from './src/routes/trip.routes.js';
 import orderRoutes from './src/routes/order.routes.js';
+import matchRoutes from './src/routes/match.routes.js';
+import { prisma } from './src/lib/prisma.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -25,6 +27,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/dropzones', dropZoneRoutes);
 app.use('/api/trips', tripRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/matches', matchRoutes);
 
 app.get("/", (req, res) => {
     res.send("BringIt API running 🚀");
@@ -33,6 +36,33 @@ app.get("/", (req, res) => {
 // Socket.io connection listener
 io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);
+
+  socket.on("join_trip_tracking", (tripId) => {
+    socket.join(`trip_${tripId}`);
+    console.log(`Socket ${socket.id} joined trip_${tripId}`);
+  });
+
+  socket.on("update_location", async (data) => {
+    try {
+      io.to(`trip_${data.tripId}`).emit("location_updated", {
+         tripId: data.tripId,
+         lat: data.lat,
+         lng: data.lng,
+         timestamp: new Date()
+      });
+
+      await prisma.trip.update({
+        where: { id: data.tripId },
+        data: {
+          currentLat: data.lat,
+          currentLng: data.lng,
+          lastLocationAt: new Date()
+        }
+      });
+    } catch (err) {
+      console.error("Location update error", err);
+    }
+  });
 
   socket.on("disconnect", () => {
     console.log("Client disconnected:", socket.id);
