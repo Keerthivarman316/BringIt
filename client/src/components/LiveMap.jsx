@@ -1,29 +1,55 @@
 import React, { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// --- LEAFLET ASSET STABILIZATION (Vite/React Fix) ---
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+    iconRetinaUrl: markerIcon2x,
+    iconUrl: markerIcon,
+    shadowUrl: markerShadow,
+});
+
+// Helper component to auto-center the map when location updates
+const RecenterMap = ({ lat, lng }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (lat && lng) {
+      map.setView([lat, lng], 16, { animate: true });
+    }
+  }, [lat, lng, map]);
+  return null;
+};
 
 const LiveMap = ({ tripId }) => {
   const [carrierLocation, setCarrierLocation] = useState(null);
-  const [status, setStatus] = useState('Connecting...');
+  const [status, setStatus] = useState('OFFLINE');
+
+  // Default Campus Coordinates (Placeholder)
+  const defaultCenter = [12.8406, 80.1534]; // VIT Chennai Grid
 
   useEffect(() => {
     if (!tripId) return;
 
-    // Connect to BringIt backend
     const socket = io('http://localhost:5000');
 
     socket.on('connect', () => {
-      setStatus('Tracking Active');
-      // Join the trip tracking room
+      setStatus('CONNECTED');
       socket.emit('join_trip_tracking', tripId);
     });
 
-    // Listen for location updates
     socket.on('location_updated', (data) => {
       setCarrierLocation({ lat: data.lat, lng: data.lng, timestamp: data.timestamp });
     });
 
     socket.on('disconnect', () => {
-      setStatus('Disconnected');
+      setStatus('OFFLINE');
     });
 
     return () => {
@@ -32,32 +58,88 @@ const LiveMap = ({ tripId }) => {
   }, [tripId]);
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-4">
-      <h2 className="text-xl font-bold mb-4">Live Tracking</h2>
-      <div className="flex items-center justify-between mb-4">
-        <span className="font-medium text-gray-700">Status:</span>
-        <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
-          status === 'Tracking Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-        }`}>
-          {status}
-        </span>
-      </div>
-      
-      <div className="bg-gray-100 rounded-lg h-64 flex flex-col items-center justify-center border border-gray-200">
-        <span className="text-gray-500 mb-2">[ Map Component Goes Here ]</span>
-        {carrierLocation ? (
-          <div className="text-sm font-medium text-blue-600 bg-blue-50 px-3 py-2 rounded-md">
-            📍 Lat: {carrierLocation.lat.toFixed(4)}, Lng: {carrierLocation.lng.toFixed(4)}
-            <div className="text-xs text-gray-500 mt-1">
-              Last updated: {new Date(carrierLocation.timestamp).toLocaleTimeString()}
-            </div>
-          </div>
-        ) : (
-          <span className="text-sm text-gray-400">Waiting for carrier location...</span>
+    <div className="w-full h-full relative bg-bg-card group/map">
+      <MapContainer 
+        center={carrierLocation ? [carrierLocation.lat, carrierLocation.lng] : defaultCenter} 
+        zoom={16} 
+        style={{ height: '100%', width: '100%', background: '#08090D' }}
+        zoomControl={false}
+      >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        />
+        
+        {carrierLocation && (
+          <>
+            <Marker position={[carrierLocation.lat, carrierLocation.lng]}>
+              <Popup className="custom-popup">
+                <div className="text-[10px] font-mono text-white font-bold p-1 uppercase">GRID_OPERATIVE_ACTIVE</div>
+              </Popup>
+            </Marker>
+            <RecenterMap lat={carrierLocation.lat} lng={carrierLocation.lng} />
+          </>
         )}
+      </MapContainer>
+
+      {/* UI Overlays */}
+      <div className="absolute inset-0 pointer-events-none z-[1000] border border-white/5">
+         <AnimatePresence>
+            {!carrierLocation && (
+               <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 flex items-center justify-center bg-bg-deep/60 backdrop-blur-md"
+               >
+                  <div className="flex flex-col items-center gap-6 text-center">
+                     <div className="w-16 h-16 rounded-full border border-brand-cyan/30 relative flex items-center justify-center">
+                        <div className="absolute inset-0 rounded-full border-2 border-brand-cyan animate-ping opacity-20" />
+                        <div className="w-3 h-3 bg-brand-cyan rounded-full shadow-[0_0_15px_rgba(0,242,255,0.8)]" />
+                     </div>
+                     <div className="space-y-2">
+                        <div className="text-[10px] font-mono text-white font-bold tracking-[0.3em] uppercase">Sector Scan In Progress</div>
+                        <div className="text-[8px] font-mono text-muted uppercase tracking-[0.1em]">Establishing operative downlink...</div>
+                     </div>
+                  </div>
+               </motion.div>
+            )}
+         </AnimatePresence>
+
+         <div className="absolute top-4 right-4 flex flex-col gap-2 items-end">
+            <div className="bg-bg-deep/80 backdrop-blur px-3 py-1.5 rounded-lg border border-white/5 flex items-center gap-2">
+               <div className={cn("w-1.5 h-1.5 rounded-full shadow-lg", status === 'CONNECTED' ? "bg-brand-green shadow-brand-green/40" : "bg-brand-red shadow-brand-red/40")} />
+               <span className="text-[9px] font-mono text-white font-bold uppercase tracking-widest">{status}</span>
+            </div>
+            {carrierLocation && (
+              <div className="bg-bg-deep/80 backdrop-blur px-3 py-1.5 rounded-lg border border-white/5 text-[8px] font-mono text-muted uppercase tracking-widest">
+                TS: {new Date(carrierLocation.timestamp).toLocaleTimeString()}
+              </div>
+            )}
+         </div>
       </div>
+
+      <style>{`
+        .leaflet-container {
+          filter: saturate(0.5) contrast(1.2) brightness(0.9);
+        }
+        .custom-popup .leaflet-popup-content-wrapper {
+          background: #11131A;
+          color: #FFFFFF;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 12px;
+          padding: 0;
+        }
+        .custom-popup .leaflet-popup-tip {
+          background: #11131A;
+        }
+      `}</style>
     </div>
   );
 };
+
+function cn(...inputs) {
+  return inputs.filter(Boolean).join(' ');
+}
 
 export default LiveMap;
