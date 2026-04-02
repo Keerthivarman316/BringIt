@@ -1,13 +1,397 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// BringIt – Prisma Schema
+// Covers: Auth, Trips, Orders, Matching, Credits (double-entry),
+//         Trust Graph, Group Orders, Drop Zones, Notifications, Carbon Tracker
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum Role {
+  REQUESTER
+  CARRIER
+  ADMIN
+}
+
+enum VerificationTier {
+  UNVERIFIED
+  EMAIL_VERIFIED
+  STUDENT_ID_VERIFIED
+  TRUSTED_CARRIER // earned after 20+ successful deliveries
+}
+
+enum TripStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum OrderStatus {
+  PENDING
+  MATCHED
+  PICKED_UP
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+  DISPUTED
+}
+
+enum MatchStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  COMPLETED
+  CANCELLED
+}
+
+enum GroupOrderStatus {
+  FORMING
+  CONFIRMED
+  ASSIGNED
+  COMPLETED
+  CANCELLED
+}
+
+enum CreditTxType {
+  EARN_DELIVERY // carrier earns credits
+  SPEND_REQUEST // requester spends credits
+  REFUND // cancelled order refund
+  BONUS // platform bonus
+  FREEZE // escrow freeze
+  UNFREEZE // escrow release
+  PENALTY // dispute penalty
+}
+
+enum NotificationType {
+  REQUEST_ACCEPTED
+  DELIVERY_UPDATE
+  TRIP_ALERT
+  GROUP_ORDER_SUGGESTION
+  URGENT_REQUEST
+  TRUST_BADGE_EARNED
+}
+
+enum UrgencyLevel {
+  NORMAL
+  URGENT // emergency mode – premium credit cost
+}
+
+// ─────────────────────────────────────────────
+// USERS
+// ─────────────────────────────────────────────
+
+model User {
+  id                String           @id @default(cuid())
+  name              String
+  email             String           @unique
+  passwordHash      String
+  role              Role             @default(REQUESTER)
+  collegeEmail      String?          @unique
+  studentIdVerified Boolean          @default(false)
+  verificationTier  VerificationTier @default(UNVERIFIED)
+
+  // Trust graph
+  trustScore    Float @default(1.0) // weighted by rater's own trust score
+  deliveryCount Int   @default(0) // increments on each successful delivery
+
+  // Credit wallet (balance derived from ledger, cached here for fast reads)
+  creditBalance Int @default(0)
+
+  profilePicUrl String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  trips             Trip[]
+  ordersAsRequester Order[] @relation("RequesterOrders")
+  matchesAsCarrier  Match[] @relation("CarrierMatches")
+
+  reviewsGiven    Review[] @relation("ReviewsGiven")
+  reviewsReceived Review[] @relation("ReviewsReceived")
+
+  creditTransactions  CreditTransaction[]
+  notifications       Notification[]
+  carbonContributions CarbonLog[]
+
+  @@index([email])
+  @@index([trustScore])
+}
+
+// ─────────────────────────────────────────────
+// TRIPS  (Carrier side)
+// ─────────────────────────────────────────────
+
+model Trip {
+  id        String @id @default(cuid())
+  carrierId String
+  carrier   User   @relation(fields: [carrierId], references: [id])
+
+  destination    String
+  destinationLat Float?
+  destinationLng Float?
+
+  departureTime DateTime
+  returnTime    DateTime?
+  capacity      Int // number of items carrier can carry
+  status        TripStatus @default(OPEN)
+
+  // Real-time carrier location (updated via WebSocket every 5 s when active)
+  currentLat     Float?
+  currentLng     Float?
+  lastLocationAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  matches    Match[]
+  routeStops RouteStop[]
+
+  @@index([carrierId])
+  @@index([destination])
+  @@index([departureTime])
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────
+// ORDERS  (Requester side)
+// ─────────────────────────────────────────────
+
+model Order {
+  id          String @id @default(cuid())
+  requesterId String
+  requester   User   @relation("RequesterOrders", fields: [requesterId], references: [id])
+
+  itemName        String
+  itemDescription String?
+  quantity        Int     @default(1)
+  storeName       String?
+  storeAddress    String?
+  storeLat        Float?
+  storeLng        Float?
+
+  budget       Int // in BringIt credits
+  deliveryFee  Int // in BringIt credits
+  urgencyLevel UrgencyLevel @default(NORMAL) // URGENT bumps to top of feed
+
+  status OrderStatus @default(PENDING)
+
+  // Drop zone delivery
+  dropZoneId       String?
+  dropZone         DropZone? @relation(fields: [dropZoneId], references: [id])
+  dropZoneQrCode   String? // HMAC-SHA256 signed, expires 24 h
+  dropZoneQrExpiry DateTime?
+
+  // Group order linkage
+  groupOrderId String?
+  groupOrder   GroupOrder? @relation(fields: [groupOrderId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  match Match?
+
+  @@index([requesterId])
+  @@index([status])
+  @@index([urgencyLevel])
+}
+
+// ─────────────────────────────────────────────
+// MATCHES
+// ─────────────────────────────────────────────
+
+model Match {
+  id     String @id @default(cuid())
+  tripId String
+  trip   Trip   @relation(fields: [tripId], references: [id])
+
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id])
+
+  carrierId String
+  carrier   User   @relation("CarrierMatches", fields: [carrierId], references: [id])
+
+  // ML matching score: route overlap + carrier reliability + requester urgency
+  matchScore Float?
+
+  status      MatchStatus @default(PENDING)
+  acceptedAt  DateTime?
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  review    Review?
+  carbonLog CarbonLog?
+
+  @@index([tripId])
+  @@index([carrierId])
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────
+// ROUTE OPTIMIZER  (multi-stop TSP per trip)
+// ─────────────────────────────────────────────
+
+model RouteStop {
+  id     String @id @default(cuid())
+  tripId String
+  trip   Trip   @relation(fields: [tripId], references: [id])
+
+  stopOrder   Int // greedy nearest-neighbor sequence
+  address     String
+  lat         Float
+  lng         Float
+  estimatedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([tripId])
+}
+
+// ─────────────────────────────────────────────
+// REVIEWS  (Weighted trust graph)
+// ─────────────────────────────────────────────
+
+model Review {
+  id      String @id @default(cuid())
+  matchId String @unique
+  match   Match  @relation(fields: [matchId], references: [id])
+
+  reviewerId String
+  reviewer   User   @relation("ReviewsGiven", fields: [reviewerId], references: [id])
+
+  reviewedUserId String
+  reviewedUser   User   @relation("ReviewsReceived", fields: [reviewedUserId], references: [id])
+
+  rating  Int // 1–5
+  comment String?
+
+  // Weight = reviewer's trust score at time of review
+  // Used to update reviewedUser.trustScore via: weighted average
+  reviewerTrustScoreAtTime Float
+
+  createdAt DateTime @default(now())
+
+  @@index([reviewedUserId])
+  @@index([reviewerId])
+}
+
+// ─────────────────────────────────────────────
+// CREDIT LEDGER  (Double-entry accounting)
+// Every credit move is a journal entry – balance is never directly mutated
+// ─────────────────────────────────────────────
+
+model CreditTransaction {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  type         CreditTxType
+  amount       Int // positive = credit in, negative = credit out
+  balanceAfter Int // snapshot for fast audit
+
+  referenceId String? // orderId / matchId / etc.
+  note        String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// ─────────────────────────────────────────────
+// GROUP ORDERS
+// BullMQ job clusters open requests by store + time window every 10 min
+// ─────────────────────────────────────────────
+
+model GroupOrder {
+  id           String           @id @default(cuid())
+  storeName    String
+  storeAddress String?
+  storeLat     Float?
+  storeLng     Float?
+  windowStart  DateTime
+  windowEnd    DateTime
+  status       GroupOrderStatus @default(FORMING)
+
+  // Each member pays a fractional delivery fee
+  totalDeliveryFee Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders Order[]
+
+  @@index([storeName])
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────
+// DROP ZONES  (campus lockers / dorm front desks)
+// ─────────────────────────────────────────────
+
+model DropZone {
+  id          String  @id @default(cuid())
+  name        String // e.g. "Library Locker B3"
+  description String?
+  lat         Float
+  lng         Float
+  isActive    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders Order[]
+
+  @@index([isActive])
+}
+
+// ─────────────────────────────────────────────
+// NOTIFICATIONS
+// ─────────────────────────────────────────────
+
+model Notification {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  type        NotificationType
+  title       String
+  body        String
+  referenceId String? // orderId / tripId / groupOrderId
+  isRead      Boolean          @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+}
+
+// ─────────────────────────────────────────────
+// CARBON TRACKER
+// Each completed delivery that replaced a solo trip logs ~2–4 km saved
+// ─────────────────────────────────────────────
+
+model CarbonLog {
+  id      String @id @default(cuid())
+  matchId String @unique
+  match   Match  @relation(fields: [matchId], references: [id])
+  userId  String
+  user    User   @relation(fields: [userId], references: [id])
+
+  kmSaved       Float // estimated km not driven solo
+  co2SavedGrams Float // kmSaved * ~120 g CO₂/km avg
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
 }
