@@ -6,7 +6,7 @@ export const createOrder = async (req, res) => {
       itemName, itemDescription, quantity, 
       storeName, storeAddress, storeLat, storeLng, 
       budget, deliveryFee, urgencyLevel, dropZoneId,
-      paymentMethod
+      paymentMethod, items
     } = req.body;
 
     if (!itemName || budget === undefined || deliveryFee === undefined) {
@@ -28,8 +28,17 @@ export const createOrder = async (req, res) => {
         urgencyLevel: urgencyLevel || 'NORMAL',
         dropZoneId: dropZoneId || null,
         paymentMethod: paymentMethod || 'COD',
-        collegeName: req.user.collegeName || 'IIIT Dharwad'
-      }
+        collegeName: req.user.collegeName || 'IIIT Dharwad',
+        items: items && items.length > 0 ? {
+          create: items.map(item => ({
+            name: item.name,
+            quantity: Number(item.qty || item.quantity || 1),
+            price: Number(item.price || 0),
+            description: item.description || ''
+          }))
+        } : undefined
+      },
+      include: { items: true }
     });
 
     res.status(201).json(order);
@@ -44,6 +53,7 @@ export const getMyOrders = async (req, res) => {
       where: { requesterId: req.user.id },
       orderBy: { createdAt: 'desc' },
       include: {
+        items: true,
         dropZone: true,
         match: {
           include: {
@@ -109,6 +119,7 @@ export const getPendingOrders = async (req, res) => {
       },
       orderBy: { createdAt: 'desc' },
       include: {
+        items: true,
         dropZone: true,
         requester: { select: { name: true, trustScore: true } }
       }

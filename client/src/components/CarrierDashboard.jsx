@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Navigation, Package, ChevronRight, MapPin, User, Activity, Smartphone, Zap, Trash2, Phone, Clock } from 'lucide-react';
+import { MapPin, ShoppingBag, Clock, Shield, CheckCircle, Package, Send, Plus, X, User, LogOut, ChevronRight, Zap, Phone, AlertCircle, Trash2, Edit3, Navigation, ExternalLink, Mail, ArrowRight, Activity, Smartphone } from 'lucide-react';
 import LiveMap from './LiveMap';
 import useGPS from '../hooks/useGPS';
 import StudioModal from './StudioModal';
@@ -20,6 +20,7 @@ const CarrierDashboard = ({ user, setUser }) => {
   const [departureTime, setDepartureTime] = useState(''); 
   const [returnTime, setReturnTime] = useState(''); 
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+  const [showOfflineConfirm, setShowOfflineConfirm] = useState(false);
   const socketRef = useRef(null);
   const currentTripRef = useRef(null);
 
@@ -137,12 +138,24 @@ const CarrierDashboard = ({ user, setUser }) => {
   };
 
   const handleToggleOnline = async () => {
+    if (isOnline) {
+      setShowOfflineConfirm(true);
+      return;
+    }
+    executeStatusToggle(true);
+  };
+
+  const executeStatusToggle = async (onlineStatus) => {
     try {
-      const res = await axios.patch('http://localhost:5000/api/auth/status', { isOnline: !isOnline }, {
+      const res = await axios.patch('http://localhost:5000/api/auth/status', { 
+        isOnline: onlineStatus,
+        reason: !onlineStatus ? 'Carrier manually went offline' : undefined
+      }, {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
       });
       setIsOnline(res.data.isOnline);
       if (setUser) setUser(prev => ({ ...prev, isOnline: res.data.isOnline }));
+      setShowOfflineConfirm(false);
     } catch (err) {
       setModal({ isOpen: true, title: 'Connection Issue', message: 'Could not sync online status with the server.', type: 'error' });
     }
@@ -325,6 +338,17 @@ const CarrierDashboard = ({ user, setUser }) => {
                                 <Zap size={10} /> Earn: ₹{item.deliveryFee}
                               </div>
                             </div>
+                            
+                            {/* Display items for carrier */}
+                            {item.items && item.items.length > 0 && (
+                              <div className="mt-4 flex flex-wrap gap-3 pb-2">
+                                {item.items.map((oi, idx) => (
+                                  <div key={idx} className="bg-brand-cyan/5 border border-brand-cyan/20 px-3 py-1.5 rounded-sm text-[10px] font-mono text-brand-cyan font-bold uppercase tracking-widest backdrop-blur-md">
+                                    {oi.quantity}X {oi.name}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -406,6 +430,22 @@ const CarrierDashboard = ({ user, setUser }) => {
                                    <div>
                                      <div className={cn("text-xs font-bold uppercase", m.status === 'CANCELLED' || m.order?.status === 'CANCELLED' ? "text-white/40 line-through" : "text-white")}>{m.order?.itemName}</div>
                                      <div className="text-[8px] font-mono text-muted uppercase">To: {m.order?.requester?.name || 'Customer'}</div>
+                                     
+                                     {/* Item summary for trip card */}
+                                     {m.order?.items && m.order.items.length > 0 && (
+                                       <div className="mt-2 flex flex-wrap gap-2 transform scale-90 origin-left pb-1">
+                                         {m.order.items.slice(0, 3).map((oi, idx) => (
+                                           <span key={idx} className="bg-white/5 border border-white/10 px-2 py-1 rounded-sm text-[8px] font-mono text-brand-cyan uppercase tracking-wider whitespace-nowrap">
+                                             {oi.quantity}X {oi.name}
+                                           </span>
+                                         ))}
+                                         {m.order.items.length > 3 && (
+                                           <span className="text-[8px] font-mono text-muted uppercase tracking-widest bg-white/5 px-2 py-1 rounded-sm">
+                                             +{m.order.items.length - 3} MORE
+                                           </span>
+                                         )}
+                                       </div>
+                                     )}
                                    </div>
                                  </div>
                                  <div className="flex flex-col items-end gap-1">
@@ -462,6 +502,17 @@ const CarrierDashboard = ({ user, setUser }) => {
                                </a>
                             )}
                           </div>
+                          
+                          {/* Items for accepted order */}
+                          {match.order?.items && match.order.items.length > 0 && (
+                            <div className="mt-6 border-t border-white/5 pt-6 flex flex-wrap gap-3 pb-2">
+                               {match.order.items.map((oi, idx) => (
+                                 <div key={idx} className="bg-white/5 border border-brand-cyan/10 px-4 py-2 rounded-sm text-[11px] font-mono text-brand-cyan font-bold uppercase tracking-widest flex items-center gap-2 backdrop-blur-md">
+                                   {oi.quantity}X {oi.name}
+                                 </div>
+                               ))}
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -682,6 +733,51 @@ const CarrierDashboard = ({ user, setUser }) => {
            </div>
         </div>
       </div>
+
+      {/* Offline Confirmation Modal */}
+      <AnimatePresence>
+        {showOfflineConfirm && (
+          <div className="fixed inset-0 z-[2000] flex items-center justify-center p-6 text-center">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowOfflineConfirm(false)}
+              className="absolute inset-0 bg-bg-deep/80 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-sm glass rounded-[40px] p-10 border border-white/10 space-y-8"
+            >
+              <div className="mx-auto w-16 h-16 rounded-full bg-brand-red/10 border border-brand-red/20 flex items-center justify-center text-brand-red">
+                <AlertCircle size={32} />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-2xl font-display text-white uppercase italic">Go Offline?</h3>
+                <p className="text-muted text-xs font-body leading-relaxed">
+                  Your active trips will be <span className="text-brand-red font-bold">CANCELLED</span> and accepted orders will be returned to the pool for other carriers.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2">
+                <button 
+                  onClick={() => executeStatusToggle(false)}
+                  className="w-full bg-brand-red text-white font-black py-4 rounded-2xl hover:brightness-110 transition-all shadow-lg shadow-brand-red/10"
+                >
+                  CONFIRM OFFLINE
+                </button>
+                <button 
+                  onClick={() => setShowOfflineConfirm(false)}
+                  className="w-full bg-white/5 text-muted font-bold py-4 rounded-2xl hover:bg-white/10 transition-all"
+                >
+                  STAY ONLINE
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <StudioModal 
         isOpen={modal.isOpen}

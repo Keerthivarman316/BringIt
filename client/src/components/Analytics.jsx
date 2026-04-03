@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { TrendingUp, DollarSign, CheckCircle, Clock, BarChart3, ArrowUpRight, RefreshCcw } from 'lucide-react';
+import { TrendingUp, DollarSign, CheckCircle, Clock, BarChart3, ArrowUpRight, RefreshCcw, Activity } from 'lucide-react';
 import axios from 'axios';
 
 const Analytics = ({ user }) => {
@@ -13,7 +13,7 @@ const Analytics = ({ user }) => {
     avgTimeSaved: 0,
     maxDaily: 100,
     dailyEarnings: [0, 0, 0, 0, 0, 0, 0],
-    weeklyVolume: [0, 0, 0, 0, 0, 0, 0]
+    recentMissions: []
   });
 
   const fetchStats = useCallback(async () => {
@@ -24,31 +24,44 @@ const Analytics = ({ user }) => {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      const completed = res.data.filter(m => m.status === 'COMPLETED');
+      // Robust Filter: Any match with a status or a delivered order is valid for analytics
+      const completed = res.data.filter(m => 
+        m.status === 'COMPLETED' || 
+        m.order?.status === 'DELIVERED' || 
+        (m.status === 'ACCEPTED' && m.completedAt)
+      );
       const earnings = completed.reduce((acc, m) => acc + (m.order?.deliveryFee || 0), 0);
       
       let totalMinutesSaved = 0;
       completed.forEach(m => {
-        if (m.completedAt && m.order?.createdAt) {
-          const start = new Date(m.order.createdAt);
-          const end = new Date(m.completedAt);
-          const diff = Math.max(1, Math.round((end - start) / (1000 * 60))); // Min 1 min
+        // Fallback chain for completion date: completedAt -> order.updatedAt -> acceptedAt
+        const end = m.completedAt ? new Date(m.completedAt) : (m.order?.updatedAt ? new Date(m.order.updatedAt) : (m.acceptedAt ? new Date(m.acceptedAt) : null));
+        const start = m.order?.createdAt ? new Date(m.order.createdAt) : null;
+        
+        if (end && start) {
+          const diff = Math.max(1, Math.round((end - start) / (1000 * 60)));
           totalMinutesSaved += diff;
         }
       });
       const avgTimeSaved = completed.length > 0 ? Math.round(totalMinutesSaved / completed.length) : 0;
 
-      // Calculate daily earnings for last 7 days
+      // Map daily earnings using strict date normalization to avoid timezone/rounding gaps
       const daily = new Array(7).fill(0);
       const now = new Date();
       now.setHours(23, 59, 59, 999);
+      const todayStart = new Date(now.toDateString()).getTime(); // Normalize based on local date
       
       completed.forEach(m => {
-        if (!m.completedAt) return;
-        const compDate = new Date(m.completedAt);
-        const diffDays = Math.floor((now - compDate) / (1000 * 60 * 60 * 24));
+        const effectiveDateStr = m.completedAt || m.acceptedAt || m.order?.createdAt;
+        if (!effectiveDateStr) return;
+        
+        const effectiveDate = new Date(effectiveDateStr);
+        const thisDateStart = new Date(effectiveDate.toDateString()).getTime();
+        
+        // Calculate difference in whole calendar days
+        const diffDays = Math.floor((todayStart - thisDateStart) / (1000 * 60 * 60 * 24));
+        
         if (diffDays >= 0 && diffDays < 7) {
-          // Index 6 is today, 5 is yesterday, etc.
           daily[6 - diffDays] += (m.order?.deliveryFee || 0);
         }
       });
@@ -65,7 +78,8 @@ const Analytics = ({ user }) => {
         avgTimeSaved,
         maxDaily,
         reliability: reliabilityValue,
-        dailyEarnings: daily
+        dailyEarnings: daily,
+        recentMissions: completed.slice(0, 5) // Last 5 completed missions
       }));
     } catch (err) {
       console.error('Fetch stats error:', err);
@@ -101,7 +115,7 @@ const Analytics = ({ user }) => {
          </button>
       </div>
 
-      {/* Top Stats */}
+      {/* Top Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
           { label: 'Total Revenue', value: `₹${stats.totalEarnings}`, icon: <DollarSign size={20} />, color: 'text-brand-cyan', trend: 'Global' },
@@ -133,7 +147,7 @@ const Analytics = ({ user }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Earnings Chart */}
+        {/* Recent Activity Timeline */}
         <motion.div 
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -141,36 +155,49 @@ const Analytics = ({ user }) => {
         >
           <div className="flex justify-between items-center">
             <div className="space-y-1">
-              <h3 className="text-xl font-display text-white uppercase tracking-tight">Earnings Flow</h3>
-              <p className="text-[10px] font-mono text-muted uppercase tracking-widest">Last 7 Days (Values in INR)</p>
+              <h3 className="text-xl font-display text-white uppercase tracking-tight">Recent Activity</h3>
+              <p className="text-[10px] font-mono text-muted uppercase tracking-widest">Chronological feed of your success</p>
             </div>
-            <BarChart3 className="text-muted opacity-20" size={32} />
+            <Activity className="text-brand-cyan opacity-20" size={32} />
           </div>
 
-          <div className="h-[240px] flex items-end justify-between gap-4 pt-10">
-            {stats.dailyEarnings.map((value, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-4 group">
-                <div className="relative w-full flex justify-center items-end h-full">
-                  <motion.div 
-                    initial={{ height: 0 }}
-                    animate={{ height: value > 0 ? `${Math.max(10, (value / stats.maxDaily) * 100)}%` : '0%' }}
-                    transition={{ delay: 0.5 + (i * 0.1), duration: 1, ease: 'easeOut' }}
-                    className="w-full max-w-[40px] bg-brand-cyan/20 border border-brand-cyan/30 rounded-t-xl group-hover:bg-brand-cyan/40 transition-all relative"
-                  >
-                     <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] font-mono font-bold text-brand-cyan opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                        ₹{value}
-                     </div>
-                  </motion.div>
+          <div className="space-y-4">
+            {stats.recentMissions.length > 0 ? stats.recentMissions.map((m, i) => (
+              <motion.div 
+                key={m.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.1 }}
+                className="flex items-center gap-6 p-6 rounded-3xl bg-white/[0.02] border border-white/5 hover:border-white/10 transition-all group"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-brand-green/10 border border-brand-green/20 flex items-center justify-center text-brand-green">
+                  <CheckCircle size={20} />
                 </div>
-                <span className="text-[9px] font-mono text-muted uppercase tracking-widest">
-                  {i === 6 ? 'Today' : `${6-i}d ago`}
-                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">
+                    {m.completedAt ? new Date(m.completedAt).toLocaleString([], { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Recently'}
+                  </div>
+                  <div className="text-sm font-bold text-white uppercase truncate group-hover:text-brand-cyan transition-colors">
+                    {m.order?.itemName || 'Unknown Item'}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Revenue</div>
+                  <div className="text-lg font-display text-brand-green italic tracking-tighter">+₹{m.order?.deliveryFee || 0}</div>
+                </div>
+              </motion.div>
+            )) : (
+              <div className="flex flex-col items-center justify-center py-16 text-center space-y-4">
+                 <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center text-muted">
+                    <Activity size={32} />
+                 </div>
+                 <p className="text-[10px] font-mono text-muted uppercase tracking-[0.2em]">No recent activity entries found</p>
               </div>
-            ))}
+            )}
           </div>
         </motion.div>
 
-        {/* performance metrics */}
+        {/* Performance Metrics Right Sidebar */}
         <motion.div 
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -205,7 +232,7 @@ const Analytics = ({ user }) => {
 
           <div className="mt-12 bg-bg-surface/50 border border-white/5 p-6 rounded-3xl text-center space-y-2">
              <div className="text-[10px] font-mono text-brand-cyan font-bold tracking-widest uppercase">Verified Tier</div>
-             <p className="text-[9px] text-muted italic leading-relaxed">You are currently at the top tier of reliability!</p>
+             <p className="text-[9px] text-muted italic leading-relaxed">Your account maintains top-tier reliability status.</p>
           </div>
         </motion.div>
       </div>

@@ -10,16 +10,21 @@ const RequesterDashboard = ({ user, setUser }) => {
   const [isFormVisible, setIsFormVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
-  // New Order State
-  const [itemName, setItemName] = useState('');
-  const [storeName, setStoreName] = useState('');
-  const [quantity, setQuantity] = useState(1);
+  const [billItems, setBillItems] = useState([]);
+  const [currentItemName, setCurrentItemName] = useState('');
+  const [currentItemQty, setCurrentItemQty] = useState(1);
+  const [currentItemPrice, setCurrentItemPrice] = useState('');
   const [deliveryFee, setDeliveryFee] = useState(25);
-  const [budget, setBudget] = useState('');
   const [urgency, setUrgency] = useState('NORMAL');
   const [step, setStep] = useState(1);
 
+  // Fallback state for single-item legacy/repost support
+  const [itemName, setItemName] = useState('');
+  const [quantity, setQuantity] = useState(1);
+  const [budget, setBudget] = useState(0);
+
   const [availableTrips, setAvailableTrips] = useState([]);
+  const [storeName, setStoreName] = useState('');
   const [activeTrackingTripId, setActiveTrackingTripId] = useState(null);
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info', onConfirm: null });
   const [showCarrierDetails, setShowCarrierDetails] = useState(false);
@@ -67,23 +72,59 @@ const RequesterDashboard = ({ user, setUser }) => {
     return () => clearInterval(interval);
   }, [fetchOrders]);
 
+  // Auto-close tracking if delivery is finished
+  useEffect(() => {
+    if (activeTrackingTripId) {
+      const activeOrders = orders.filter(o => o.match?.tripId === activeTrackingTripId);
+      if (activeOrders.length > 0 && activeOrders.every(o => o.status === 'DELIVERED')) {
+         setActiveTrackingTripId(null);
+      }
+    }
+  }, [orders, activeTrackingTripId]);
+
+  const addBillItem = () => {
+    if (!currentItemName || !currentItemQty || !currentItemPrice) return;
+    const newItem = {
+      id: Date.now(),
+      name: currentItemName,
+      qty: currentItemQty,
+      price: currentItemPrice
+    };
+    setBillItems([...billItems, newItem]);
+    setCurrentItemName('');
+    setCurrentItemQty(1);
+    setCurrentItemPrice('');
+  };
+
+  const removeBillItem = (id) => {
+    setBillItems(billItems.filter(item => item.id !== id));
+  };
   const handlePlaceOrder = async (e) => {
     if (e) e.preventDefault();
     try {
+      const totalQty = billItems.reduce((acc, item) => acc + Number(item.qty), 0);
+      const totalBudget = billItems.reduce((acc, item) => acc + (Number(item.qty) * Number(item.price)), 0);
+      
+      // Cleaner title for multi-item orders
+      const combinedName = billItems.length > 1 
+        ? `${billItems[0].name} + ${billItems.length - 1} more` 
+        : billItems[0].name;
+
       await axios.post('http://localhost:5000/api/orders', {
-        itemName: `${quantity}x ${itemName}`,
+        itemName: combinedName,
         storeName,
+        quantity: totalQty,
         deliveryFee: Number(deliveryFee),
-        budget: Number(budget),
-        urgency
+        budget: Number(totalBudget),
+        urgency,
+        items: billItems // NEW: send original item list
       }, {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
       });
       setIsFormVisible(false);
-      setItemName('');
+      setBillItems([]);
+      setCurrentItemName('');
       setStoreName('');
-      setBudget('');
-      setQuantity(1);
       setDeliveryFee(25);
       setStep(1);
       fetchOrders();
@@ -162,13 +203,18 @@ const RequesterDashboard = ({ user, setUser }) => {
   };
 
   const handleRepost = (order) => {
-    // Extract base item name if it contains "Nx " prefix
-    const baseName = order.itemName.includes('x ') ? order.itemName.split('x ').slice(1).join('x ') : order.itemName;
-    setItemName(baseName);
-    setStoreName(order.storeName);
-    setQuantity(order.quantity);
+    // If it's an old single-item order, put it in billItems
+    const pricePerUnit = Math.floor(order.budget / (order.quantity || 1));
+    const newItem = {
+      id: Date.now(),
+      name: order.itemName.includes('x ') ? order.itemName.split('x ').slice(1).join('x ') : order.itemName,
+      qty: order.quantity || 1,
+      price: pricePerUnit
+    };
+    setBillItems([newItem]);
+    setStoreName(order.storeName || '');
     setDeliveryFee(order.deliveryFee);
-    setBudget(order.budget);
+    setUrgency(order.urgencyLevel || 'NORMAL');
     setIsFormVisible(true);
     setStep(3); // Go straight to review step
   };
@@ -286,13 +332,24 @@ const RequesterDashboard = ({ user, setUser }) => {
                 layoutId={order.id}
                 className={cn(
                   "flex-shrink-0 w-full glass min-h-[180px] h-auto rounded-[32px] p-6 flex flex-col justify-between group cursor-pointer hover:border-brand-cyan/40 transition-all",
-                  order.urgency === 'URGENT' ? "border-brand-red/50 shadow-lg shadow-brand-red/5" : "border-white/5"
+                  (order.urgencyLevel === 'URGENT' || order.urgency === 'URGENT') ? "border-brand-red/50 shadow-lg shadow-brand-red/5" : "border-white/5"
                 )}
                >
                   <div className="flex justify-between items-start">
                      <div className="space-y-1">
                         <div className="text-[10px] font-mono text-muted tracking-widest uppercase">{order.storeName}</div>
                         <h4 className="text-xl font-heading text-white">{order.itemName}</h4>
+                        
+                        {/* Display itemized bill if available */}
+                        {order.items && order.items.length > 0 && (
+                          <div className="mt-4 flex flex-wrap gap-3 pb-2">
+                            {order.items.map((item, idx) => (
+                              <div key={idx} className="bg-white/5 border border-brand-cyan/20 px-3 py-1.5 rounded-sm text-[10px] font-mono text-brand-cyan font-bold uppercase tracking-widest backdrop-blur-md shadow-sm shadow-brand-cyan/5">
+                                {item.quantity}X {item.name}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                      </div>
                      <div className={cn(
                        "px-3 py-1 rounded-full text-[9px] font-bold tracking-widest uppercase",
@@ -481,58 +538,112 @@ const RequesterDashboard = ({ user, setUser }) => {
                <div className="space-y-12 relative z-10">
                   <AnimatePresence mode="wait">
                     {step === 1 && (
-                      <motion.div 
-                        initial={{ x: 40, opacity: 0 }}
-                        animate={{ x: 0, opacity: 1 }}
-                        exit={{ x: -40, opacity: 0 }}
-                        className="space-y-6"
-                      >
-                         <div className="group space-y-2">
-                           <label className="text-[10px] font-mono text-muted tracking-widest uppercase ml-4">What do you need?</label>
-                           <div className="relative">
-                              <ShoppingBag className="absolute left-6 top-1/2 -translate-y-1/2 text-muted group-focus-within:text-brand-cyan transition-colors" size={20} />
-                              <input 
-                                type="text" 
-                                value={itemName}
-                                onChange={(e) => setItemName(e.target.value)}
-                                placeholder="Iced Americano + Brownie"
-                                className="w-full bg-bg-surface/50 border border-white/5 rounded-3xl py-5 pl-16 pr-6 text-white outline-none focus:border-brand-cyan/50 hover:border-white/10 transition-all font-heading"
-                              />
-                           </div>
-                         </div>
+                       <motion.div 
+                         initial={{ x: 40, opacity: 0 }}
+                         animate={{ x: 0, opacity: 1 }}
+                         exit={{ x: -40, opacity: 0 }}
+                         className="space-y-6"
+                       >
+                          {/* Store Name */}
+                          <div className="group space-y-2">
+                             <label className="text-[10px] font-mono text-muted tracking-widest uppercase ml-4">Pickup From</label>
+                             <div className="relative">
+                                <MapPin className="absolute left-6 top-1/2 -translate-y-1/2 text-muted group-focus-within:text-brand-cyan transition-colors" size={20} />
+                                <input 
+                                  type="text" 
+                                  value={storeName}
+                                  onChange={(e) => setStoreName(e.target.value)}
+                                  placeholder="Campus Starbucks / Canteen"
+                                  className="w-full bg-bg-surface/50 border border-white/5 rounded-3xl py-5 pl-16 pr-6 text-white outline-none focus:border-brand-cyan/50 hover:border-white/10 transition-all font-heading"
+                                />
+                             </div>
+                          </div>
 
-                         <div className="group space-y-2">
-                           <label className="text-[10px] font-mono text-muted tracking-widest uppercase ml-4">Pickup From</label>
-                           <div className="relative">
-                              <MapPin className="absolute left-6 top-1/2 -translate-y-1/2 text-muted group-focus-within:text-brand-cyan transition-colors" size={20} />
-                              <input 
-                                type="text" 
-                                value={storeName}
-                                onChange={(e) => setStoreName(e.target.value)}
-                                placeholder="Campus Starbucks"
-                                className="w-full bg-bg-surface/50 border border-white/5 rounded-3xl py-5 pl-16 pr-6 text-white outline-none focus:border-brand-cyan/50 hover:border-white/10 transition-all font-heading"
-                              />
-                           </div>
-                         </div>
-                         
-                         <div className="space-y-4 pt-2 group">
-                           <label className="text-[10px] font-mono text-muted tracking-widest uppercase ml-4">Quantity (Items)</label>
-                           <input 
-                             type="number" 
-                             min="1" max="50" step="1"
-                             value={quantity}
-                             onChange={(e) => setQuantity(Number(e.target.value))}
-                             className="w-full bg-bg-surface/50 border border-white/5 rounded-3xl py-5 px-6 text-white outline-none focus:border-brand-cyan/50 hover:border-white/10 transition-all font-heading text-xl"
-                           />
-                         </div>
-                         
-                         <button 
-                          onClick={() => itemName && storeName && setStep(2)}
-                          className="w-full bg-brand-cyan text-bg-deep font-bold py-5 rounded-3xl shadow-xl shadow-brand-cyan/20 flex items-center justify-center gap-3 group hover:brightness-110 transition-all"
-                         >
-                            NEXT <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                         </button>
-                      </motion.div>
+                          {/* Digital Bill */}
+                          <div className="bg-bg-surface/30 border border-white/5 rounded-[32px] overflow-hidden">
+                             <div className="p-6 border-b border-white/5 bg-white/[0.02]">
+                                <h4 className="text-[10px] font-mono text-brand-cyan font-bold tracking-widest uppercase">Digital Bill</h4>
+                             </div>
+                             
+                             <div className="max-h-[300px] overflow-y-auto p-4 space-y-2">
+                                {billItems.map(item => (
+                                  <div key={item.id} className="flex items-center gap-4 p-4 rounded-2xl bg-bg-card border border-white/5 group/item">
+                                     <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-xs font-bold text-brand-cyan">{item.qty}x</div>
+                                     <div className="flex-1 min-w-0">
+                                        <div className="text-xs font-bold text-white uppercase truncate">{item.name}</div>
+                                        <div className="text-[9px] font-mono text-muted uppercase">₹{item.price} per unit</div>
+                                     </div>
+                                     <div className="text-sm font-display text-white">₹{item.qty * item.price}</div>
+                                     <button 
+                                       onClick={() => removeBillItem(item.id)}
+                                       className="w-8 h-8 rounded-lg flex items-center justify-center text-muted hover:text-brand-red hover:bg-brand-red/10 transition-all opacity-0 group-hover/item:opacity-100"
+                                     >
+                                        <Trash2 size={14} />
+                                     </button>
+                                  </div>
+                                ))}
+                                
+                                {billItems.length === 0 && (
+                                  <div className="py-12 text-center text-muted text-[10px] font-mono uppercase tracking-widest opacity-50">
+                                     No items added to bill
+                                  </div>
+                                )}
+                             </div>
+
+                             {/* Add Item Row */}
+                             <div className="p-6 bg-brand-cyan/[0.02] border-t border-white/5 space-y-4">
+                                <div className="grid grid-cols-12 gap-3">
+                                   <div className="col-span-6">
+                                      <input 
+                                        type="text" 
+                                        placeholder="Item Name..."
+                                        value={currentItemName}
+                                        onChange={(e) => setCurrentItemName(e.target.value)}
+                                        className="w-full bg-bg-surface/50 border border-white/5 rounded-2xl py-3 px-4 text-xs text-white outline-none focus:border-brand-cyan/30"
+                                      />
+                                   </div>
+                                   <div className="col-span-2">
+                                      <input 
+                                        type="number" 
+                                        placeholder="Qty"
+                                        value={currentItemQty}
+                                        onChange={(e) => setCurrentItemQty(e.target.value)}
+                                        className="w-full bg-bg-surface/50 border border-white/5 rounded-2xl py-3 px-2 text-center text-xs text-brand-cyan outline-none focus:border-brand-cyan/30"
+                                      />
+                                   </div>
+                                   <div className="col-span-4 flex gap-2">
+                                      <input 
+                                        type="number" 
+                                        placeholder="₹ Price"
+                                        value={currentItemPrice}
+                                        onChange={(e) => setCurrentItemPrice(e.target.value)}
+                                        className="w-full bg-bg-surface/50 border border-white/5 rounded-2xl py-3 px-3 text-xs text-white outline-none focus:border-brand-cyan/30"
+                                      />
+                                      <button 
+                                        onClick={addBillItem}
+                                        disabled={!currentItemName || !currentItemPrice}
+                                        className="w-12 h-full bg-brand-cyan text-bg-deep rounded-2xl flex items-center justify-center hover:brightness-110 transition-all disabled:opacity-20"
+                                      >
+                                         <Zap size={16} fill="currentColor" />
+                                      </button>
+                                   </div>
+                                </div>
+                             </div>
+                             
+                             <div className="p-6 bg-bg-deep flex justify-between items-center border-t border-white/5">
+                                <span className="text-[10px] font-mono text-muted uppercase tracking-widest">Bill Subtotal</span>
+                                <span className="text-xl font-display text-white italic">₹{billItems.reduce((acc, item) => acc + (item.qty * item.price), 0)}</span>
+                             </div>
+                          </div>
+                          
+                          <button 
+                           onClick={() => billItems.length > 0 && storeName && setStep(2)}
+                           disabled={billItems.length === 0 || !storeName}
+                           className="w-full bg-white text-bg-deep font-bold py-5 rounded-[32px] shadow-xl hover:bg-brand-cyan transition-all flex items-center justify-center gap-3 group disabled:opacity-20"
+                          >
+                             NEXT <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                          </button>
+                       </motion.div>
                     )}
 
                     {step === 2 && (
@@ -556,22 +667,10 @@ const RequesterDashboard = ({ user, setUser }) => {
                             </div>
                          </div>
 
-                         <div className="space-y-4 pt-4 border-t border-white/5 group">
-                            <label className="text-[10px] font-mono text-muted tracking-widest uppercase ml-4">Item Budget Max (₹)</label>
-                            <input 
-                              type="number" 
-                              min="0" max="50000" step="10"
-                              value={budget}
-                              onChange={(e) => setBudget(Number(e.target.value))}
-                              className="w-full bg-bg-surface/50 border border-white/5 rounded-3xl py-5 px-6 text-white outline-none focus:border-white/20 hover:border-white/10 transition-all font-display text-2xl"
-                              placeholder="0"
-                            />
-                         </div>
-
                          <div className="flex gap-4">
                             <button onClick={() => setStep(1)} className="flex-1 py-4 text-[10px] font-mono text-muted tracking-widest uppercase hover:text-white transition-colors">BACK</button>
                             <button 
-                              onClick={() => budget && setStep(3)}
+                              onClick={() => setStep(3)}
                               className="flex-[2] bg-brand-cyan text-bg-deep font-bold py-5 rounded-3xl hover:brightness-110 transition-all"
                             >
                               REVIEW ORDER
@@ -581,47 +680,70 @@ const RequesterDashboard = ({ user, setUser }) => {
                     )}
 
                     {step === 3 && (
-                      <motion.div 
-                        initial={{ x: 40, opacity: 0 }}
-                        animate={{ x: 0, opacity: 1 }}
-                        exit={{ x: -40, opacity: 0 }}
-                        className="space-y-8"
-                      >
-                         <div className="bg-bg-surface/50 border border-white/5 p-8 rounded-[32px] space-y-6">
-                            <div className="flex justify-between">
-                               <div className="text-[10px] font-mono text-muted tracking-widest uppercase">Order Summary</div>
-                               <div className={cn("text-[8px] font-bold px-2 py-0.5 rounded-full", urgency === 'URGENT' ? "bg-brand-red text-white" : "bg-white/10 text-white")}>
-                                  {urgency}
-                               </div>
-                            </div>
-                            <div className="space-y-2">
-                               <div className="text-2xl font-heading text-white">{quantity}x {itemName}</div>
-                               <div className="text-xs text-muted flex items-center gap-2"><MapPin size={12} /> {storeName}</div>
-                            </div>
-                            <div className="border-t border-white/5 pt-4 flex justify-between items-center">
-                               <div className="text-[10px] font-mono text-muted uppercase">Total</div>
-                               <div className="text-3xl font-display text-white">₹{Number(budget) + Number(deliveryFee)}</div>
-                            </div>
-                         </div>
+                       <motion.div 
+                         initial={{ x: 40, opacity: 0 }}
+                         animate={{ x: 0, opacity: 1 }}
+                         exit={{ x: -40, opacity: 0 }}
+                         className="space-y-8"
+                       >
+                          <div className="bg-bg-surface/50 border border-white/5 p-8 rounded-[40px] space-y-6 shadow-2xl relative overflow-hidden">
+                             <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                                <ShoppingBag size={120} />
+                             </div>
+                             
+                             <div className="flex justify-between border-b border-white/5 pb-4">
+                                <div className="space-y-1">
+                                    <div className="text-[10px] font-mono text-brand-cyan font-bold tracking-widest uppercase">Bill Summary</div>
+                                    <div className="text-xs text-muted flex items-center gap-2 uppercase tracking-widest"><MapPin size={10} /> {storeName}</div>
+                                </div>
+                                <div className={cn("h-fit text-[8px] font-bold px-3 py-1 rounded-full uppercase tracking-widest", urgency === 'URGENT' ? "bg-brand-red text-white" : "bg-white/10 text-white")}>
+                                   {urgency}
+                                </div>
+                             </div>
 
-                         <div className="flex gap-4">
-                            <button 
-                              onClick={() => setUrgency(prev => prev === 'NORMAL' ? 'URGENT' : 'NORMAL')}
-                              className={cn(
-                                "flex-1 py-4 rounded-2xl border font-bold text-[10px] tracking-widest uppercase transition-all",
-                                urgency === 'URGENT' ? "border-brand-red bg-brand-red/10 text-brand-red" : "border-white/10 text-muted hover:border-white/20"
-                              )}
-                            >
-                               {urgency === 'URGENT' ? 'URGENT ⚡' : 'Mark Urgent?'}
-                            </button>
-                            <button 
-                              onClick={handlePlaceOrder}
-                              className="flex-[2] bg-white text-bg-deep font-bold py-5 rounded-3xl hover:bg-brand-cyan hover:shadow-lg hover:shadow-brand-cyan/20 transition-all"
-                            >
-                              PLACE ORDER 🚀
-                            </button>
-                         </div>
-                      </motion.div>
+                             <div className="space-y-3">
+                                {billItems.map(item => (
+                                   <div key={item.id} className="flex justify-between items-center px-2">
+                                      <div className="text-xs font-bold text-white uppercase tracking-tighter">{item.qty}x {item.name}</div>
+                                      <div className="text-xs font-mono text-muted">₹{item.qty * item.price}</div>
+                                   </div>
+                                ))}
+                             </div>
+
+                             <div className="space-y-2 border-t border-white/5 pt-6">
+                                <div className="flex justify-between text-[10px] font-mono text-muted uppercase tracking-widest px-2">
+                                   <span>Subtotal</span>
+                                   <span>₹{billItems.reduce((acc, item) => acc + (item.qty * item.price), 0)}</span>
+                                </div>
+                                <div className="flex justify-between text-[10px] font-mono text-brand-cyan uppercase tracking-widest px-2 font-bold">
+                                   <span>Delivery Fee</span>
+                                   <span>₹{deliveryFee}</span>
+                                </div>
+                                <div className="border-t border-brand-cyan/20 pt-4 mt-2 flex justify-between items-end px-2">
+                                   <div className="text-[10px] font-mono text-white tracking-[0.2em] uppercase font-black">Grand Total</div>
+                                   <div className="text-4xl font-display text-white italic tracking-tighter">₹{billItems.reduce((acc, item) => acc + (item.qty * item.price), 0) + Number(deliveryFee)}</div>
+                                </div>
+                             </div>
+                          </div>
+
+                          <div className="flex gap-4">
+                             <button 
+                               onClick={() => setUrgency(prev => prev === 'NORMAL' ? 'URGENT' : 'NORMAL')}
+                               className={cn(
+                                 "flex-1 py-5 rounded-3xl border font-bold text-[10px] tracking-widest uppercase transition-all",
+                                 urgency === 'URGENT' ? "border-brand-red bg-brand-red/10 text-brand-red shadow-[0_0_15px_rgba(239,68,68,0.1)]" : "border-white/10 text-muted hover:border-white/20"
+                               )}
+                             >
+                                {urgency === 'URGENT' ? 'URGENT ⚡' : 'Mark Urgent?'}
+                             </button>
+                             <button 
+                               onClick={handlePlaceOrder}
+                               className="flex-[2] bg-white text-bg-deep font-black py-5 rounded-3xl hover:bg-brand-cyan hover:shadow-[0_0_30px_rgba(0,242,255,0.2)] transition-all uppercase tracking-widest"
+                             >
+                                CONFIRM & POST 🚀
+                             </button>
+                          </div>
+                       </motion.div>
                     )}
                   </AnimatePresence>
                </div>

@@ -58,20 +58,23 @@ export const getMyMatches = async (req, res) => {
   try {
     const matches = await prisma.match.findMany({
       where: { carrierId: req.user.id },
-      include: {
+      select: {
+        id: true,
+        status: true,
+        acceptedAt: true,
+        completedAt: true,
         order: {
           select: {
             itemName: true,
-            storeName: true,
+            status: true,
             deliveryFee: true,
-            budget: true,
-            createdAt: true
+            createdAt: true,
+            updatedAt: true
           }
         },
         trip: {
           select: {
-            destination: true,
-            departureTime: true
+            destination: true
           }
         }
       },

@@ -99,12 +99,63 @@ export const getMe = async (req, res) => {
 
 export const updateStatus = async (req, res) => {
   try {
-    const { isOnline } = req.body;
-    const user = await prisma.user.update({
-      where: { id: req.user.id },
-      data: { isOnline: !!isOnline }
+    const { isOnline, reason } = req.body;
+    
+    // Use transaction to ensure data integrity
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Update user online status
+      const user = await tx.user.update({
+        where: { id: req.user.id },
+        data: { isOnline: !!isOnline }
+      });
+
+      // 2. If turning offline, handle active missions
+      if (!isOnline) {
+        const cancellationMsg = reason || 'Carrier went offline';
+        
+        // Find all active trips for this carrier
+        const activeTrips = await tx.trip.findMany({
+          where: { 
+            carrierId: req.user.id,
+            status: { in: ['OPEN', 'IN_PROGRESS'] }
+          },
+          include: { matches: true }
+        });
+
+        for (const trip of activeTrips) {
+          // Cancel the trip
+          await tx.trip.update({
+            where: { id: trip.id },
+            data: { 
+              status: 'CANCELLED',
+              cancellationReason: cancellationMsg
+            }
+          });
+
+          // Handle each match on this trip
+          for (const match of trip.matches) {
+            // Cancel the match
+            await tx.match.update({
+              where: { id: match.id },
+              data: { status: 'CANCELLED' }
+            });
+
+            // Return the order to PENDING pool
+            await tx.order.update({
+              where: { id: match.orderId },
+              data: { 
+                status: 'PENDING',
+                cancellationReason: `Re-listed: ${cancellationMsg}`
+              }
+            });
+          }
+        }
+      }
+
+      return user;
     });
-    res.json({ message: 'Status updated', isOnline: user.isOnline });
+
+    res.json({ message: 'Status updated and missions handled', isOnline: result.isOnline });
   } catch (error) {
     console.error('Update status error:', error);
     res.status(500).json({ message: 'Internal server error' });

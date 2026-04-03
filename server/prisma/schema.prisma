@@ -149,6 +149,8 @@ model Trip {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  cancellationReason String?
+
   matches    Match[]
   routeStops RouteStop[]
 
@@ -195,6 +197,9 @@ model Order {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  cancellationReason String?
+
+  items OrderItem[]
   match Match?
   collegeName String? @default("IIIT Dharwad") // Default for current orders
 
@@ -367,8 +372,22 @@ model CarbonLog {
   kmSaved       Float // estimated km not driven solo
   co2SavedGrams Float // kmSaved * ~120 g CO₂/km avg
 
-  createdAt DateTime @default(now())
 
+  createdAt DateTime @default(now())
   @@index([userId])
   @@index([createdAt])
+}
+
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  name        String
+  quantity    Int      @default(1)
+  price       Int?     // price per unit
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([orderId])
 }
