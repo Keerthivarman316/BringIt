@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Package, MapPin, Clock, Zap, Search, ChevronRight, Navigation, LayoutDashboard, Settings as SettingsIcon, Map, Activity, ShoppingBag, Phone } from 'lucide-react';
+import { Package, MapPin, Clock, Zap, Search, ChevronRight, Navigation, LayoutDashboard, Settings as SettingsIcon, Map, Activity, ShoppingBag, Phone, Trash2, X, AlertCircle, MessageCircle, CheckCircle, CreditCard } from 'lucide-react';
 import LiveMap from './LiveMap';
 import StudioModal from './StudioModal';
 
@@ -85,18 +85,39 @@ const RequesterDashboard = () => {
     setModal({
       isOpen: true,
       title: 'Cancel Order?',
-      message: 'Are you sure you want to cancel this order? This action cannot be undone.',
+      message: 'This will stop carriers from finding your order. You can still re-post it later.',
       type: 'confirm',
       confirmText: 'Yes, Cancel Order',
+      onConfirm: async () => {
+        try {
+          await axios.patch(`http://localhost:5000/api/orders/${orderId}/cancel`, {}, {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          });
+          fetchOrders();
+          setModal({ isOpen: true, title: 'Order Cancelled', message: 'Your search was stopped successfully.', type: 'success' });
+        } catch (err) {
+          setModal({ isOpen: true, title: 'Action Failed', message: 'Failed to cancel order.', type: 'error' });
+        }
+      }
+    });
+  };
+
+  const handleDeleteOrder = (orderId) => {
+    setModal({
+      isOpen: true,
+      title: 'Delete Permanently?',
+      message: 'This action is final and will remove the order from your history forever.',
+      type: 'error',
+      confirmText: 'Delete Forever',
       onConfirm: async () => {
         try {
           await axios.delete(`http://localhost:5000/api/orders/${orderId}`, {
             headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
           });
           fetchOrders();
-          setModal({ isOpen: true, title: 'Order Cancelled', message: 'Your order has been successfully removed.', type: 'success' });
+          setModal({ isOpen: true, title: 'Order Deleted', message: 'The record has been permanently removed.', type: 'success' });
         } catch (err) {
-          setModal({ isOpen: true, title: 'Action Failed', message: err.response?.data?.message || 'Failed to cancel order.', type: 'error' });
+          setModal({ isOpen: true, title: 'Action Failed', message: 'Failed to delete order.', type: 'error' });
         }
       }
     });
@@ -265,23 +286,41 @@ const RequesterDashboard = () => {
                                    </a>
                                 )}
                               </>
-                           )}
-                           {(order.status === 'PENDING' || order.status === 'MATCHED') && (
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); handleCancelOrder(order.id); }}
-                                className="bg-bg-surface border border-white/10 text-brand-red px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase hover:bg-brand-red/10 transition-all"
-                              >
-                                CANCEL
-                              </button>
-                           )}
-                           {order.status === 'CANCELLED' && (
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); handleRepost(order); }}
-                                className="bg-brand-amber text-bg-deep px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase hover:brightness-110 transition-all"
-                              >
-                                RE-POST
-                              </button>
-                           )}
+                           )}                            {(order.status === 'PENDING' || order.status === 'MATCHED') && (
+                              <div className="flex items-center gap-2">
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); handleCancelOrder(order.id); }}
+                                  className="bg-bg-surface border border-white/10 text-brand-red px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase hover:bg-brand-red/10 transition-all"
+                                >
+                                  CANCEL
+                                </button>
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteOrder(order.id); }}
+                                  className="bg-bg-surface/50 border border-white/5 text-muted p-2 rounded-xl hover:text-brand-red hover:border-brand-red/20 transition-all"
+                                  title="Delete Permanently"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            )}
+                            {order.status === 'CANCELLED' && (
+                               <div className="flex items-center gap-2">
+                                  <button 
+                                    onClick={(e) => { e.stopPropagation(); handleRepost(order); }}
+                                    className="bg-brand-amber text-bg-deep px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase hover:brightness-110 transition-all"
+                                  >
+                                    RE-POST
+                                  </button>
+                                  <button 
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteOrder(order.id); }}
+                                    className="bg-bg-surface/50 border border-white/5 text-muted p-2 rounded-xl hover:text-brand-red hover:border-brand-red/20 transition-all"
+                                    title="Delete Permanently"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                               </div>
+                            )}
+
                         </div>
                         <div className="text-xl font-display text-white italic">₹{order.deliveryFee + order.budget}</div>
                      </div>

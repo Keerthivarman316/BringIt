@@ -160,3 +160,37 @@ export const cancelOrder = async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 };
+
+export const deleteOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: { match: true }
+    });
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    if (order.requesterId !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized to delete this order' });
+    }
+
+    // Process hard deletion
+    await prisma.$transaction([
+      ...(order.match ? [prisma.match.delete({
+        where: { id: order.match.id }
+      })] : []),
+      prisma.order.delete({
+        where: { id }
+      })
+    ]);
+
+    res.json({ message: 'Order deleted permanently' });
+  } catch (error) {
+    console.error('Error deleting Order:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};

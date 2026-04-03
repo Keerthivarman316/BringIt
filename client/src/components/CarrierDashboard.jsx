@@ -77,7 +77,7 @@ const CarrierDashboard = () => {
     }
 
     const now = new Date();
-    const threshold = new Date(now.getTime() - 60000); // 1 minute grace for "NOW"
+    const threshold = new Date(now.getTime() - 120000); // 2 minute grace for "NOW"
     const selectedDate = new Date(departureTime);
     const tenHoursFromNow = new Date(now.getTime() + 10 * 60 * 60 * 1000);
 
