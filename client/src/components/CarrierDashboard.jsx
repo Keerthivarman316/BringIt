@@ -20,22 +20,29 @@ const CarrierDashboard = () => {
   const [departureTime, setDepartureTime] = useState(''); 
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
   const socketRef = useRef(null);
+  const currentTripRef = useRef(null);
+
+  const currentTrip = myTrips.find(t => t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
+
+  useEffect(() => {
+    currentTripRef.current = currentTrip;
+  }, [currentTrip]);
 
   const fetchData = useCallback(async () => {
     try {
       const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
-      const [pendingRes, tripsRes, userRes] = await Promise.all([
+      const [ordersRes, tripsRes, authRes] = await Promise.all([
         axios.get('http://localhost:5000/api/orders/pending', { headers }),
         axios.get('http://localhost:5000/api/trips/my-trips', { headers }),
         axios.get('http://localhost:5000/api/auth/me', { headers })
       ]);
-      setPendingOrders(pendingRes.data);
+      setPendingOrders(ordersRes.data);
       setMyTrips(tripsRes.data);
-      if (userRes.data && typeof userRes.data.isOnline === 'boolean') {
-        setIsOnline(userRes.data.isOnline);
+      if (authRes.data && authRes.data.isOnline !== undefined) {
+        setIsOnline(authRes.data.isOnline);
       }
     } catch (err) {
-      console.error('Fetch error:', err);
+      console.error('Fetch data error:', err);
     }
   }, []);
 
@@ -50,14 +57,14 @@ const CarrierDashboard = () => {
   }, [fetchData]);
 
   const handleGPSUpdate = useCallback((location) => {
-    if (myTrips.length > 0 && isLocationSharing && socketRef.current) {
+    if (currentTripRef.current && isLocationSharing && socketRef.current) {
       socketRef.current.emit('update_location', {
-        tripId: myTrips[0].id,
+        tripId: currentTripRef.current.id,
         lat: location.lat,
         lng: location.lng
       });
     }
-  }, [myTrips, isLocationSharing]);
+  }, [isLocationSharing]);
 
   const { error: gpsError } = useGPS(isLocationSharing, handleGPSUpdate);
 
@@ -185,7 +192,8 @@ const CarrierDashboard = () => {
     });
   };
 
-  const currentTrip = myTrips.find(t => t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
+  // Remove the previous redundant currentTrip calculation since it's now handled at the top
+
 
   return (
     <div className="space-y-12">

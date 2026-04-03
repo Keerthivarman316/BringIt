@@ -14,6 +14,68 @@ import CustomCursor from './components/CustomCursor'
 import Landing from './components/Landing'
 import LiveMap from './components/LiveMap'
 
+// --- LIVE TRACKING PAGE WRAPPER ---
+const LiveTrackingPage = () => {
+  const [activeTripId, setActiveTripId] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const findActiveTrip = async () => {
+      try {
+        const res = await axios.get('http://localhost:5000/api/orders/my-orders', {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        });
+        // Find first order that is matched and has a trip
+        const matchedOrder = res.data.find(o => 
+          (o.status === 'MATCHED' || o.status === 'PICKED_UP') && o.match?.tripId
+        );
+        if (matchedOrder) {
+          setActiveTripId(matchedOrder.match.tripId);
+        }
+      } catch (err) {
+        console.error('Failed to find active trip:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    findActiveTrip();
+  }, []);
+
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center h-[70vh] gap-6">
+       <div className="w-12 h-12 border-4 border-brand-cyan/20 border-t-brand-cyan rounded-full animate-spin" />
+       <p className="text-[10px] font-mono text-muted uppercase tracking-widest">Searching for active shipments...</p>
+    </div>
+  );
+
+  if (!activeTripId) return (
+    <div className="flex flex-col items-center justify-center h-[70vh] gap-8 bg-bg-surface/50 border border-white/5 rounded-[40px] text-center p-12">
+       <div className="w-20 h-20 rounded-full bg-brand-red/10 border border-brand-red/20 flex items-center justify-center">
+          <Activity size={32} className="text-brand-red opacity-60" />
+       </div>
+       <div className="space-y-3">
+          <h3 className="text-xl font-display text-white uppercase italic">No Active Tracking</h3>
+          <p className="text-[10px] font-mono text-muted uppercase tracking-widest leading-loose max-w-[320px] mx-auto">
+             You don't have any orders currently matched with a delivery partner. 
+             Place an order or wait for a partner to accept!
+          </p>
+       </div>
+       <Link 
+        to="/dashboard/requester" 
+        className="bg-bg-deep border border-brand-cyan/20 text-brand-cyan px-8 py-3 rounded-2xl text-[10px] font-black tracking-widest uppercase hover:bg-brand-cyan hover:text-bg-deep transition-all shadow-2xl"
+       >
+         BACK TO DASHBOARD
+       </Link>
+    </div>
+  );
+
+  return (
+    <div className="w-full h-[75vh] rounded-[40px] overflow-hidden border border-brand-cyan/20 bg-bg-deep shadow-2xl relative group">
+       <LiveMap tripId={activeTripId} />
+    </div>
+  );
+};
+
 // --- PROTECTED ROUTE WRAPPER ---
 const ProtectedRoute = ({ user, children, requiredRole }) => {
   if (!user) return <Navigate to="/login" replace />;
@@ -273,9 +335,7 @@ const AppRoutes = () => {
 
         <Route path="/map" element={
           <ProtectedRoute user={user} requiredRole="REQUESTER">
-            <div className="w-full h-[70vh] rounded-[32px] overflow-hidden border border-white/5 bg-bg-surface">
-              <LiveMap />
-            </div>
+            <LiveTrackingPage />
           </ProtectedRoute>
         } />
 

@@ -3,28 +3,35 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🧹 Starting cleanup...');
+  console.log('♻️  Starting FULL DATABASE RESET...');
   
   try {
-    // Delete matches first due to foreign keys
-    const deletedMatches = await prisma.match.deleteMany({});
-    console.log(`- Deleted ${deletedMatches.count} matches`);
+    // Stage 1: Social & Activity
+    console.log('Cleaning social records...');
+    await prisma.review.deleteMany({});
+    await prisma.notification.deleteMany({});
+    await prisma.carbonLog.deleteMany({});
 
-    // Delete route stops
-    const deletedStops = await prisma.routeStop.deleteMany({});
-    console.log(`- Deleted ${deletedStops.count} route stops`);
+    // Stage 2: Matching & Routing
+    console.log('Cleaning match and route records...');
+    await prisma.match.deleteMany({});
+    await prisma.routeStop.deleteMany({});
 
-    // Delete trips
-    const deletedTrips = await prisma.trip.deleteMany({});
-    console.log(`- Deleted ${deletedTrips.count} trips`);
+    // Stage 3: Core Logistics
+    console.log('Cleaning trips and orders...');
+    await prisma.trip.deleteMany({});
+    await prisma.order.deleteMany({});
+    await prisma.groupOrder.deleteMany({});
+    await prisma.dropZone.deleteMany({});
 
-    // Delete orders
-    const deletedOrders = await prisma.order.deleteMany({});
-    console.log(`- Deleted ${deletedOrders.count} orders`);
-
-    console.log('✅ Cleanup complete! Database is fresh.');
+    // Stage 4: Users (Final Step)
+    console.log('Removing all user accounts...');
+    const deletedUsers = await prisma.user.deleteMany({});
+    console.log(`✅ Success! Deleted ${deletedUsers.count} users and all associated platform data.`);
+    
+    console.log('\n✨ Database is now completely empty.');
   } catch (err) {
-    console.error('❌ Cleanup failed:', err);
+    console.error('❌ Reset failed:', err);
   } finally {
     await prisma.$disconnect();
   }

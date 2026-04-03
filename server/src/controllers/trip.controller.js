@@ -149,10 +149,10 @@ export const cancelTrip = async (req, res) => {
         const orderIds = trip.matches.map(m => m.orderId);
         const matchIds = trip.matches.map(m => m.id);
 
-        // 2. Revert orders to PENDING
+        // 2. Mark orders as CANCELLED (user requested this over PENDING revert)
         await tx.order.updateMany({
           where: { id: { in: orderIds } },
-          data: { status: 'PENDING' }
+          data: { status: 'CANCELLED' }
         });
 
         // 3. Cancel all matches
@@ -205,6 +205,23 @@ export const deleteTrip = async (req, res) => {
     res.json({ message: 'Trip history deleted successfully.' });
   } catch (error) {
     console.error('Error deleting trip:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+export const getTripById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const trip = await prisma.trip.findUnique({
+      where: { id },
+      include: {
+        carrier: { select: { id: true, name: true, trustScore: true, profilePicUrl: true, deliveryCount: true } }
+      }
+    });
+    if (!trip) return res.status(404).json({ message: 'Trip not found' });
+    res.json(trip);
+  } catch (error) {
+    console.error('Error fetching trip by ID:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 };

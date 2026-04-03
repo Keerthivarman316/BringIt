@@ -22,6 +22,7 @@ const RequesterDashboard = () => {
   const [availableTrips, setAvailableTrips] = useState([]);
   const [activeTrackingTripId, setActiveTrackingTripId] = useState(null);
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info', onConfirm: null });
+  const [showCarrierDetails, setShowCarrierDetails] = useState(false);
 
   const fetchTrips = async () => {
     try {
@@ -100,6 +101,17 @@ const RequesterDashboard = () => {
       }
     });
   };
+  const handleRepost = (order) => {
+    // Extract base item name if it contains "Nx " prefix
+    const baseName = order.itemName.includes('x ') ? order.itemName.split('x ').slice(1).join('x ') : order.itemName;
+    setItemName(baseName);
+    setStoreName(order.storeName);
+    setQuantity(order.quantity);
+    setDeliveryFee(order.deliveryFee);
+    setBudget(order.budget);
+    setIsFormVisible(true);
+    setStep(3); // Go straight to review step
+  };
 
   // Filter available trips based on current order quantity and carrier online status
   const filteredTrips = availableTrips.filter(t => t.capacity >= quantity && t.carrier?.isOnline);
@@ -127,11 +139,34 @@ const RequesterDashboard = () => {
                  const carrier = activeOrder?.match?.trip?.carrier;
                  if (!carrier) return null;
                  return (
-                   <div className="bg-bg-deep/80 backdrop-blur-xl px-5 py-4 rounded-2xl border border-brand-cyan/20 flex flex-col gap-1 shadow-2xl w-fit">
-                     <div className="text-[9px] font-mono tracking-widest text-brand-cyan uppercase font-bold flex items-center gap-2"><User size={10} /> DELIVERY PARTNER</div>
-                     <div className="text-sm font-bold text-white uppercase">{carrier.name || 'Anonymous'}</div>
-                     <div className="text-[10px] font-mono text-brand-cyan uppercase">Trust Score: ★ {carrier.trustScore?.toFixed(1) || '1.0'}</div>
-                   </div>
+                    <div 
+                      onClick={() => setShowCarrierDetails(!showCarrierDetails)}
+                      className="bg-bg-deep/80 backdrop-blur-xl px-5 py-4 rounded-2xl border border-brand-cyan/20 flex flex-col gap-1 shadow-2xl w-fit cursor-pointer hover:bg-bg-card transition-all"
+                    >
+                      <div className="text-[9px] font-mono tracking-widest text-brand-cyan uppercase font-bold flex items-center gap-2"><Activity size={10} /> {showCarrierDetails ? 'TAP TO HIDE' : 'TAP FOR DETAILS'}</div>
+                      <div className="text-sm font-bold text-white uppercase">{carrier.name || 'Anonymous'}</div>
+                      <div className="text-[10px] font-mono text-brand-cyan uppercase">Trust Score: ★ {carrier.trustScore?.toFixed(1) || '1.0'}</div>
+                      
+                      <AnimatePresence>
+                        {showCarrierDetails && (
+                          <motion.div 
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden border-t border-white/5 mt-2 pt-2 space-y-2"
+                          >
+                             <div className="flex justify-between items-center bg-white/5 p-2 rounded-xl">
+                                <span className="text-[8px] font-mono text-muted uppercase">Past Deliveries</span>
+                                <span className="text-[10px] font-bold text-white tracking-widest">{carrier.deliveryCount || 0}</span>
+                             </div>
+                             <div className="flex justify-between items-center bg-white/5 p-2 rounded-xl">
+                                <span className="text-[8px] font-mono text-muted uppercase">Verification</span>
+                                <span className="text-[10px] font-bold text-brand-green tracking-widest uppercase">Verified Student</span>
+                             </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
                  );
                })()}
              </div>
@@ -219,6 +254,14 @@ const RequesterDashboard = () => {
                                 className="bg-bg-surface border border-white/10 text-brand-red px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase hover:bg-brand-red/10 transition-all"
                               >
                                 CANCEL
+                              </button>
+                           )}
+                           {order.status === 'CANCELLED' && (
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleRepost(order); }}
+                                className="bg-brand-amber text-bg-deep px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase hover:brightness-110 transition-all"
+                              >
+                                RE-POST
                               </button>
                            )}
                         </div>

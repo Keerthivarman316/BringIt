@@ -8,14 +8,12 @@ const Analytics = () => {
     totalEarnings: 0,
     completedDeliveries: 0,
     activeTime: 0,
-    reliability: 98,
-    dailyEarnings: [450, 780, 520, 900, 310, 650, 820],
-    weeklyVolume: [12, 18, 15, 22, 10, 25, 28]
+    reliability: 0,
+    dailyEarnings: [0, 0, 0, 0, 0, 0, 0],
+    weeklyVolume: [0, 0, 0, 0, 0, 0, 0]
   });
 
   useEffect(() => {
-    // In a real app, fetch from /api/analytics
-    // For now using placeholder logic or fetching recent matches
     const fetchStats = async () => {
       try {
         const res = await axios.get('http://localhost:5000/api/matches/my-matches', {
@@ -23,10 +21,16 @@ const Analytics = () => {
         });
         const completed = res.data.filter(m => m.status === 'COMPLETED');
         const earnings = completed.reduce((acc, m) => acc + (m.order?.deliveryFee || 0), 0);
+        
+        const reliabilityValue = res.data.length > 0 
+          ? Math.round((completed.length / res.data.length) * 100) 
+          : 0;
+
         setStats(prev => ({
           ...prev,
           totalEarnings: earnings,
-          completedDeliveries: completed.length
+          completedDeliveries: completed.length,
+          reliability: reliabilityValue
         }));
       } catch (err) {
         console.error('Fetch stats error:', err);
@@ -40,10 +44,10 @@ const Analytics = () => {
       {/* Top Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { label: 'Total Revenue', value: `₹${stats.totalEarnings}`, icon: <DollarSign size={20} />, color: 'text-brand-cyan', trend: '+12.5%' },
-          { label: 'Deliveries', value: stats.completedDeliveries, icon: <CheckCircle size={20} />, color: 'text-brand-green', trend: '+4' },
-          { label: 'Avg. Speed', value: '14 min', icon: <Clock size={20} />, color: 'text-brand-amber', trend: '-2m' },
-          { label: 'Reliability', value: `${stats.reliability}%`, icon: <TrendingUp size={20} />, color: 'text-white', trend: 'STABLE' },
+          { label: 'Total Revenue', value: `₹${stats.totalEarnings}`, icon: <DollarSign size={20} />, color: 'text-brand-cyan', trend: stats.completedDeliveries > 0 ? '+New' : 'Zero' },
+          { label: 'Deliveries', value: stats.completedDeliveries, icon: <CheckCircle size={20} />, color: 'text-brand-green', trend: stats.completedDeliveries.toString() },
+          { label: 'Avg. Speed', value: stats.completedDeliveries > 0 ? '---' : '0 min', icon: <Clock size={20} />, color: 'text-brand-amber', trend: '-' },
+          { label: 'Reliability', value: `${stats.reliability}%`, icon: <TrendingUp size={20} />, color: 'text-white', trend: stats.reliability > 90 ? 'EXCELLENT' : 'STABLE' },
         ].map((item, i) => (
           <motion.div 
             key={i}

@@ -24,7 +24,7 @@ export const register = async (req, res) => {
         name,
         email,
         passwordHash,
-        role: role || 'REQUESTER',
+        role: role ? role.toUpperCase() : 'REQUESTER',
         collegeName: collegeName || 'IIIT Dharwad'
       },
     });
