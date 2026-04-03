@@ -27,7 +27,8 @@ export const createOrder = async (req, res) => {
         deliveryFee: Number(deliveryFee),
         urgencyLevel: urgencyLevel || 'NORMAL',
         dropZoneId: dropZoneId || null,
-        paymentMethod: paymentMethod || 'COD'
+        paymentMethod: paymentMethod || 'COD',
+        collegeName: req.user.collegeName || 'IIIT Dharwad'
       }
     });
 
@@ -103,7 +104,10 @@ export const updateOrder = async (req, res) => {
 export const getPendingOrders = async (req, res) => {
   try {
     const orders = await prisma.order.findMany({
-      where: { status: 'PENDING' },
+      where: { 
+        status: 'PENDING',
+        collegeName: req.user.collegeName || 'IIIT Dharwad'
+      },
       orderBy: { createdAt: 'desc' },
       include: {
         dropZone: true,
@@ -113,6 +117,46 @@ export const getPendingOrders = async (req, res) => {
     res.json(orders);
   } catch (error) {
     console.error('Error fetching pending orders:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+export const cancelOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: { match: true }
+    });
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    if (order.requesterId !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized to cancel this order' });
+    }
+
+    if (order.status !== 'PENDING' && order.status !== 'MATCHED') {
+      return res.status(400).json({ message: 'Cannot cancel order in current status' });
+    }
+
+    // Process cancellation
+    await prisma.$transaction([
+      prisma.order.update({
+        where: { id },
+        data: { status: 'CANCELLED' }
+      }),
+      ...(order.match ? [prisma.match.update({
+        where: { id: order.match.id },
+        data: { status: 'CANCELLED' }
+      })] : [])
+    ]);
+
+    res.json({ message: 'Order cancelled successfully' });
+  } catch (error) {
+    console.error('Error cancelling Order:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 };

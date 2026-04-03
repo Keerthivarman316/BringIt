@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Mail, Lock, ShoppingBag, Briefcase, ChevronRight, Check, ArrowLeft, UserPlus } from 'lucide-react';
+import { User, Mail, Lock, ShoppingBag, Briefcase, ChevronRight, Check, ArrowLeft, UserPlus, LayoutGrid } from 'lucide-react';
 import axios from 'axios';
 
 const Register = ({ setUser }) => {
@@ -9,6 +9,7 @@ const Register = ({ setUser }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [collegeName, setCollegeName] = useState('');
   const [role, setRole] = useState('REQUESTER');
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -21,6 +22,7 @@ const Register = ({ setUser }) => {
         email,
         password,
         role,
+        collegeName
       });
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
@@ -117,12 +119,23 @@ const Register = ({ setUser }) => {
                       className="w-full bg-bg-surface/50 border border-white/5 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-brand-cyan/50 focus:bg-bg-card hover:border-white/10 transition-all text-white font-medium"
                     />
                   </div>
+
+                  <div className="relative group">
+                    <LayoutGrid size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted group-focus-within:text-brand-cyan transition-colors" />
+                    <input 
+                      type="text" 
+                      placeholder="College Name (e.g. IIIT Dharwad)"
+                      value={collegeName}
+                      onChange={(e) => setCollegeName(e.target.value)}
+                      className="w-full bg-bg-surface/50 border border-white/5 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-brand-cyan/50 focus:bg-bg-card hover:border-white/10 transition-all text-white font-medium"
+                    />
+                  </div>
                 </div>
 
                 {error && <p className="text-brand-red text-xs font-bold text-center">⚠ {error}</p>}
 
                 <button 
-                  onClick={() => name && email && password && setStep(2)}
+                  onClick={() => name && email && password && collegeName && setStep(2)}
                   className="w-full bg-white text-bg-deep font-black py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-brand-cyan hover:shadow-lg hover:shadow-brand-cyan/20 transition-all shadow-xl group"
                 >
                   NEXT: CHOOSE ROLE <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />

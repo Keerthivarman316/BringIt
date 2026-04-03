@@ -94,12 +94,13 @@ model User {
   collegeEmail      String?          @unique
   studentIdVerified Boolean          @default(false)
   verificationTier  VerificationTier @default(UNVERIFIED)
+  collegeName       String?
 
   // Trust graph
   trustScore    Float @default(1.0) // weighted by rater's own trust score
   deliveryCount Int   @default(0) // increments on each successful delivery
 
-  // Credit wallet (No longer used - status points only)
+  isOnline          Boolean          @default(false)
   profilePicUrl String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -117,6 +118,7 @@ model User {
 
   @@index([email])
   @@index([trustScore])
+  @@index([collegeName])
 }
 
 // ─────────────────────────────────────────────
@@ -192,10 +194,12 @@ model Order {
   updatedAt DateTime @updatedAt
 
   match Match?
+  collegeName String? @default("IIIT Dharwad") // Default for current orders
 
   @@index([requesterId])
   @@index([status])
   @@index([urgencyLevel])
+  @@index([collegeName])
 }
 
 // ─────────────────────────────────────────────

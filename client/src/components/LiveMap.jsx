@@ -34,8 +34,8 @@ const LiveMap = ({ tripId }) => {
   const [carrierLocation, setCarrierLocation] = useState(null);
   const [status, setStatus] = useState('OFFLINE');
 
-  // Default Campus Coordinates (VIT Chennai)
-  const defaultCenter = [12.8406, 80.1534];
+  // Default Campus Coordinates (IIIT Dharwad)
+  const defaultCenter = [15.3926, 75.0252];
 
   useEffect(() => {
     if (!tripId) return;
@@ -61,7 +61,7 @@ const LiveMap = ({ tripId }) => {
   }, [tripId]);
 
   return (
-    <div className="w-full h-full relative bg-bg-card group/map">
+    <div className="w-full h-full min-h-[400px] md:min-h-0 relative bg-bg-deep group/map overflow-hidden">
       <MapContainer 
         center={carrierLocation ? [carrierLocation.lat, carrierLocation.lng] : defaultCenter} 
         zoom={16} 

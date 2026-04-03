@@ -21,6 +21,21 @@
   --font-mono: 'JetBrains Mono', monospace;
 }
 
+[data-theme="light"] {
+  /* Studio Light Palette - Premium White & Blue */
+  --bg-deep: #F8FAFC; 
+  --bg-card: #FFFFFF;
+  --bg-surface: #F1F5F9;
+  --primary: #2563EB; /* Royal Blue for high contrast */
+  --secondary: #7C3AED;
+  --green: #10B981;
+  --red: #EF4444;
+  --amber: #F59E0B;
+  --white: #0F172A; /* Deep Slate for text */
+  --muted: rgba(15, 23, 42, 0.5);
+  --border: rgba(15, 23, 42, 0.05);
+}
+
 @theme {
   --color-bg-deep: var(--bg-deep);
   --color-bg-card: var(--bg-card);
@@ -30,6 +45,9 @@
   --color-brand-green: var(--green);
   --color-brand-red: var(--red);
   --color-brand-amber: var(--amber);
+  --color-white: var(--white);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
   
   /* Legacy alias for transition period */
   --color-brand-orange: var(--primary); 
@@ -51,7 +69,17 @@ body {
   font-family: var(--font-body);
   margin: 0;
   overflow-x: hidden;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-deep);
 }
 
 h1, h2, h3, h4, .font-heading {
@@ -118,4 +146,55 @@ h1, h2, h3, h4, .font-heading {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--primary);
+}
+/* Interactive Elements */
+button, a, [role="button"], input[type="range"], input[type="checkbox"], .cursor-pointer {
+  cursor: pointer !important;
+}
+
+/* Custom Calendar Styling */
+input[type="datetime-local"] {
+  position: relative;
+}
+
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  background: transparent;
+  bottom: 0;
+  color: transparent;
+  cursor: pointer;
+  height: auto;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: auto;
+}
+
+[data-theme="light"] input[type="datetime-local"] {
+  color-scheme: light;
+  color: var(--white);
+  background-color: var(--bg-surface);
+}
+
+[data-theme="dark"] input[type="datetime-local"] {
+  color-scheme: dark;
+  color: var(--white);
+  background-color: var(--bg-surface);
+}
+
+input[type="datetime-local"] {
+  padding: 0.75rem 1rem;
+  border-radius: 1rem;
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: all 0.2s ease;
+}
+
+input[type="datetime-local"]:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
 }

@@ -23,14 +23,22 @@ const Settings = () => {
   const [toggles, setToggles] = useState({
     'Push Notifications': true,
     'GPS Tracking': true,
-    'Dark Mode': true,
+    'Dark Mode': localStorage.getItem('theme') !== 'light',
     'Two-Factor Auth': false,
     'Auto-accept Orders': false,
     'Email Alerts': true,
   });
 
   const handleToggle = (key) => {
-    setToggles(prev => ({ ...prev, [key]: !prev[key] }));
+    setToggles(prev => {
+      const newState = { ...prev, [key]: !prev[key] };
+      if (key === 'Dark Mode') {
+        const newTheme = newState[key] ? 'dark' : 'light';
+        localStorage.setItem('theme', newTheme);
+        document.documentElement.setAttribute('data-theme', newTheme);
+      }
+      return newState;
+    });
   };
 
   const [activeTab, setActiveTab] = useState('profile');

@@ -1,17 +1,9 @@
 import React from 'react';
-import { motion, useMotionValue, useMotionTemplate } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Terminal, Grid, Shield, Box, ChevronRight, Zap, Target, Activity, Navigation, DollarSign } from 'lucide-react';
 
 const Landing = ({ user }) => {
-  const mouseX = useMotionValue(0);
-  const mouseY = useMotionValue(0);
-
-  const handleMouseMove = ({ clientX, clientY }) => {
-    mouseX.set(clientX);
-    mouseY.set(clientY);
-  };
-
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
@@ -28,36 +20,9 @@ const Landing = ({ user }) => {
 
   return (
     <div 
-      onMouseMove={handleMouseMove}
-      className="relative w-full min-h-screen flex flex-col items-center bg-[#08090D] overflow-hidden pt-20 group/container"
+      className="relative w-full min-h-screen flex flex-col items-center bg-transparent overflow-hidden pt-20 group/container"
     >
-      {/* ... previous background layers ... */}
-      <motion.div
-        className="pointer-events-none fixed inset-0 z-0 opacity-0 transition duration-300 group-hover/container:opacity-100"
-        style={{
-          background: useMotionTemplate`
-            radial-gradient(
-              800px circle at ${mouseX}px ${mouseY}px,
-              rgba(0, 242, 255, 0.12),
-              transparent 80%
-            )
-          `,
-        }}
-      />
       
-      {/* Animated Moving Grid */}
-      <div className="absolute inset-0 z-0 pointer-events-none opacity-20">
-        <motion.div 
-          animate={{ backgroundPosition: ["0px 0px", "60px 60px"] }}
-          transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `linear-gradient(rgba(0, 242, 255, 0.2) 1px, transparent 1px), 
-                              linear-gradient(90deg, rgba(0, 242, 255, 0.2) 1px, transparent 1px)`,
-            backgroundSize: '60px 60px',
-          }}
-        />
-      </div>
 
       {/* Main Content */}
       <motion.div 

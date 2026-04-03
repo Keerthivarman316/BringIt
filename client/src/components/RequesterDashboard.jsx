@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, MapPin, IndianRupee, Plus, Navigation, ShoppingBag, ChevronRight } from 'lucide-react';
+import { Package, MapPin, Clock, Zap, Search, ChevronRight, Navigation, LayoutDashboard, Settings as SettingsIcon, Map, Activity, ShoppingBag } from 'lucide-react';
+import LiveMap from './LiveMap';
+import StudioModal from './StudioModal';
 
 const RequesterDashboard = () => {
   const [orders, setOrders] = useState([]);
@@ -11,18 +13,28 @@ const RequesterDashboard = () => {
   // New Order State
   const [itemName, setItemName] = useState('');
   const [storeName, setStoreName] = useState('');
+  const [quantity, setQuantity] = useState(1);
   const [deliveryFee, setDeliveryFee] = useState(25);
   const [budget, setBudget] = useState('');
   const [urgency, setUrgency] = useState('NORMAL');
   const [step, setStep] = useState(1);
 
-  useEffect(() => {
-    fetchOrders();
-    const interval = setInterval(fetchOrders, 10000);
-    return () => clearInterval(interval);
-  }, []);
+  const [availableTrips, setAvailableTrips] = useState([]);
+  const [activeTrackingTripId, setActiveTrackingTripId] = useState(null);
+  const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info', onConfirm: null });
 
-  const fetchOrders = async () => {
+  const fetchTrips = async () => {
+    try {
+      const response = await axios.get('http://localhost:5000/api/trips/available', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      setAvailableTrips(response.data);
+    } catch (err) {
+      console.error('Fetch trips error:', err);
+    }
+  };
+
+  const fetchOrders = useCallback(async () => {
     try {
       const response = await axios.get('http://localhost:5000/api/orders/my-orders', {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
@@ -31,13 +43,23 @@ const RequesterDashboard = () => {
     } catch (err) {
       console.error('Fetch error:', err);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchOrders();
+    fetchTrips();
+    const interval = setInterval(() => {
+      fetchOrders();
+      fetchTrips();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [fetchOrders]);
 
   const handlePlaceOrder = async (e) => {
     if (e) e.preventDefault();
     try {
       await axios.post('http://localhost:5000/api/orders', {
-        itemName,
+        itemName: `${quantity}x ${itemName}`,
         storeName,
         deliveryFee: Number(deliveryFee),
         budget: Number(budget),
@@ -56,8 +78,50 @@ const RequesterDashboard = () => {
     }
   };
 
+  const handleCancelOrder = (orderId) => {
+    setModal({
+      isOpen: true,
+      title: 'Cancel Order?',
+      message: 'Are you sure you want to cancel this order? This action cannot be undone.',
+      type: 'confirm',
+      confirmText: 'Yes, Cancel Order',
+      onConfirm: async () => {
+        try {
+          await axios.delete(`http://localhost:5000/api/orders/${orderId}`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          });
+          fetchOrders();
+          setModal({ isOpen: true, title: 'Order Cancelled', message: 'Your order has been successfully removed.', type: 'success' });
+        } catch (err) {
+          setModal({ isOpen: true, title: 'Action Failed', message: err.response?.data?.message || 'Failed to cancel order.', type: 'error' });
+        }
+      }
+    });
+  };
+
+  // Filter available trips based on current order quantity and carrier online status
+  const filteredTrips = availableTrips.filter(t => t.capacity >= quantity && t.carrier?.isOnline);
+
   return (
-    <div className="flex flex-col gap-12 max-w-6xl mx-auto pb-24">
+    <div className="flex flex-col gap-12 max-w-6xl mx-auto pb-24 items-stretch w-full px-4">
+      
+      {activeTrackingTripId && (
+        <section className="glass rounded-[40px] p-1 border border-brand-cyan/20 overflow-hidden relative group">
+           <div className="absolute top-6 left-6 z-20 flex items-center gap-3 bg-bg-deep/80 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/5 shadow-2xl">
+              <div className="w-2 h-2 rounded-full bg-brand-cyan animate-pulse shadow-[0_0_8px_rgba(0,242,255,1)]" />
+              <span className="text-[10px] font-mono text-white font-bold tracking-widest uppercase">Live Tracking Active</span>
+              <button 
+                onClick={() => setActiveTrackingTripId(null)}
+                className="ml-4 text-[10px] font-mono text-brand-red font-bold hover:underline"
+              >
+                CLOSE MAP
+              </button>
+           </div>
+           <div className="h-[400px] w-full rounded-[38px] overflow-hidden bg-bg-deep">
+              <LiveMap tripId={activeTrackingTripId} />
+           </div>
+        </section>
+      )}
       
       {/* Search Hero */}
       <section className="relative h-[240px] rounded-[40px] overflow-hidden bg-bg-card border border-white/5 p-12 flex flex-col items-center justify-center">
@@ -107,7 +171,7 @@ const RequesterDashboard = () => {
                >
                   <div className="flex justify-between items-start">
                      <div className="space-y-1">
-                        <div className="text-[10px] font-mono text-muted uppercase tracking-widest">{order.storeName || 'ANY STORE'}</div>
+                        <div className="text-[10px] font-mono text-muted tracking-widest uppercase">{order.storeName}</div>
                         <h4 className="text-xl font-heading text-white">{order.itemName}</h4>
                      </div>
                      <div className={cn(
@@ -119,13 +183,25 @@ const RequesterDashboard = () => {
                         {order.status}
                      </div>
                   </div>
-                  
-                  <div className="space-y-3">
-                     <div className="flex justify-between items-end">
+                  <div className="space-y-4">
+                     <div className="flex justify-between items-end mb-2">
                         <div className="flex items-center gap-3">
-                           <div className="w-8 h-8 rounded-full bg-bg-surface flex items-center justify-center border border-white/5">
-                              <Navigation size={14} className="text-brand-cyan" />
-                           </div>
+                           {order.status === 'MATCHED' && (
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); setActiveTrackingTripId(order.matches?.[0]?.tripId); }}
+                                className="bg-brand-cyan text-bg-deep px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase hover:brightness-110 transition-all"
+                              >
+                                TRACK LIVE
+                              </button>
+                           )}
+                           {(order.status === 'PENDING' || order.status === 'MATCHED') && (
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleCancelOrder(order.id); }}
+                                className="bg-bg-surface border border-white/10 text-brand-red px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase hover:bg-brand-red/10 transition-all"
+                              >
+                                CANCEL
+                              </button>
+                           )}
                         </div>
                         <div className="text-xl font-display text-white italic">₹{order.deliveryFee + order.budget}</div>
                      </div>
@@ -154,6 +230,54 @@ const RequesterDashboard = () => {
             )}
          </div>
       </section>
+      
+      {/* Available Carriers */}
+      <section className="space-y-6">
+         <div className="flex items-center justify-between">
+            <h3 className="text-2xl font-display text-white uppercase tracking-tighter">Active Trips Near You</h3>
+            <span className="text-[10px] font-mono tracking-[0.2em] text-brand-cyan font-bold uppercase">Showing capacity {'>='} {quantity}</span>
+         </div>
+         
+         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {filteredTrips.map(trip => (
+               <div key={trip.id} className="glass p-5 rounded-[24px] border border-white/5 space-y-4 hover:border-brand-cyan/30 transition-all group">
+                  <div className="flex items-center gap-3">
+                     <div className="w-10 h-10 rounded-xl bg-brand-cyan/10 flex items-center justify-center text-brand-cyan border border-brand-cyan/20">
+                        <Navigation size={18} />
+                     </div>
+                     <div>
+                        <div className="text-[10px] font-mono text-muted uppercase tracking-widest">Carrier</div>
+                        <div className="text-xs font-bold text-white uppercase truncate max-w-[120px]">{trip.carrier?.name || 'Anonymous'}</div>
+                     </div>
+                  </div>
+                  
+                  <div className="space-y-1">
+                     <div className="text-[9px] font-mono text-muted uppercase">Destination</div>
+                     <div className="text-sm font-heading text-white italic truncate">{trip.destination}</div>
+                  </div>
+
+                  <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl border border-white/5">
+                     <div className="text-center">
+                        <div className="text-[8px] font-mono text-muted uppercase">Capacity</div>
+                        <div className="text-xs font-bold text-brand-cyan">{trip.capacity} items</div>
+                     </div>
+                     <div className="w-px h-6 bg-white/10" />
+                     <div className="text-center">
+                        <div className="text-[8px] font-mono text-muted uppercase">Starts At</div>
+                        <div className="text-xs font-bold text-white">{new Date(trip.departureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                     </div>
+                  </div>
+               </div>
+            ))}
+
+            {filteredTrips.length === 0 && (
+               <div className="col-span-full py-8 text-center glass rounded-3xl border border-dashed border-white/10 text-muted text-[10px] font-mono uppercase tracking-[0.2em]">
+                  No carriers available with capacity {quantity}
+               </div>
+            )}
+         </div>
+      </section>
+
 
       {/* Order Creation Form */}
       <AnimatePresence>
@@ -215,6 +339,20 @@ const RequesterDashboard = () => {
                            </div>
                          </div>
                          
+                         <div className="space-y-4 pt-2">
+                           <div className="flex justify-between items-center ml-4 mr-2">
+                             <label className="text-[10px] font-mono text-muted tracking-widest uppercase">Quantity</label>
+                             <span className="text-xl font-bold text-brand-cyan uppercase">{quantity} items</span>
+                           </div>
+                           <input 
+                             type="range" 
+                             min="1" max="20" step="1"
+                             value={quantity}
+                             onChange={(e) => setQuantity(e.target.value)}
+                             className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-brand-cyan"
+                           />
+                         </div>
+                         
                          <button 
                           onClick={() => itemName && storeName && setStep(2)}
                           className="w-full bg-brand-cyan text-bg-deep font-bold py-5 rounded-3xl shadow-xl shadow-brand-cyan/20 flex items-center justify-center gap-3 group hover:brightness-110 transition-all"
@@ -248,18 +386,18 @@ const RequesterDashboard = () => {
                             </div>
                          </div>
 
-                         <div className="group space-y-2">
-                           <label className="text-[10px] font-mono text-muted tracking-widest uppercase ml-4">Item Budget (₹)</label>
-                           <div className="relative">
-                              <IndianRupee className="absolute left-6 top-1/2 -translate-y-1/2 text-muted group-focus-within:text-brand-cyan transition-colors" size={20} />
-                              <input 
-                                type="number" 
-                                value={budget}
-                                onChange={(e) => setBudget(e.target.value)}
-                                placeholder="Max price for items"
-                                className="w-full bg-bg-surface/50 border border-white/5 rounded-3xl py-5 pl-16 pr-6 text-white outline-none focus:border-brand-cyan/50 hover:border-white/10 transition-all font-heading"
-                              />
-                           </div>
+                         <div className="space-y-6 pt-4 border-t border-white/5">
+                            <div className="flex justify-between items-end">
+                               <label className="text-[10px] font-mono text-muted tracking-widest uppercase ml-4">Item Budget (Max amount)</label>
+                               <div className="text-2xl font-display text-white">₹{budget || 0}</div>
+                            </div>
+                            <input 
+                              type="range" 
+                              min="0" max="2000" step="10"
+                              value={budget || 0}
+                              onChange={(e) => setBudget(e.target.value)}
+                              className="w-full h-2 bg-white/5 rounded-lg appearance-none cursor-pointer accent-white"
+                            />
                          </div>
 
                          <div className="flex gap-4">
@@ -289,7 +427,7 @@ const RequesterDashboard = () => {
                                </div>
                             </div>
                             <div className="space-y-2">
-                               <div className="text-2xl font-heading text-white">{itemName}</div>
+                               <div className="text-2xl font-heading text-white">{quantity}x {itemName}</div>
                                <div className="text-xs text-muted flex items-center gap-2"><MapPin size={12} /> {storeName}</div>
                             </div>
                             <div className="border-t border-white/5 pt-4 flex justify-between items-center">
@@ -323,6 +461,16 @@ const RequesterDashboard = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <StudioModal 
+        isOpen={modal.isOpen}
+        onClose={() => setModal({ ...modal, isOpen: false })}
+        title={modal.title}
+        message={modal.message}
+        type={modal.type}
+        confirmText={modal.confirmText}
+        onConfirm={modal.onConfirm}
+      />
     </div>
   );
 };

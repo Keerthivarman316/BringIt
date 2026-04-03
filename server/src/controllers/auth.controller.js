@@ -6,7 +6,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'bringit_super_secret_key_change_me
 
 export const register = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, collegeName } = req.body;
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -25,12 +25,13 @@ export const register = async (req, res) => {
         email,
         passwordHash,
         role: role || 'REQUESTER',
+        collegeName: collegeName || 'IIIT Dharwad'
       },
     });
 
     // Generate JWT token
     const token = jwt.sign(
-      { id: newUser.id, role: newUser.role, email: newUser.email },
+      { id: newUser.id, role: newUser.role, email: newUser.email, collegeName: newUser.collegeName },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -63,7 +64,7 @@ export const login = async (req, res) => {
 
     // Generate JWT
     const token = jwt.sign(
-      { id: user.id, role: user.role, email: user.email },
+      { id: user.id, role: user.role, email: user.email, collegeName: user.collegeName },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -91,6 +92,20 @@ export const getMe = async (req, res) => {
     res.json({ user: userData });
   } catch (error) {
     console.error('Get profile error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+export const updateStatus = async (req, res) => {
+  try {
+    const { isOnline } = req.body;
+    const user = await prisma.user.update({
+      where: { id: req.user.id },
+      data: { isOnline: !!isOnline }
+    });
+    res.json({ message: 'Status updated', isOnline: user.isOnline });
+  } catch (error) {
+    console.error('Update status error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 };
