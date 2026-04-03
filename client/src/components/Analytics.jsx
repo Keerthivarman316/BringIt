@@ -1,90 +1,116 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { TrendingUp, DollarSign, CheckCircle, Clock, BarChart3, ArrowUpRight } from 'lucide-react';
+import { TrendingUp, DollarSign, CheckCircle, Clock, BarChart3, ArrowUpRight, RefreshCcw } from 'lucide-react';
 import axios from 'axios';
 
 const Analytics = ({ user }) => {
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [stats, setStats] = useState({
     totalEarnings: 0,
     completedDeliveries: 0,
     activeTime: 0,
     reliability: 0,
     avgTimeSaved: 0,
+    maxDaily: 100,
     dailyEarnings: [0, 0, 0, 0, 0, 0, 0],
     weeklyVolume: [0, 0, 0, 0, 0, 0, 0]
   });
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const token = sessionStorage.getItem('token');
-        const res = await axios.get('http://localhost:5000/api/matches/my-matches', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        
-        const completed = res.data.filter(m => m.status === 'COMPLETED');
-        const earnings = completed.reduce((acc, m) => acc + (m.order?.deliveryFee || 0), 0);
-        
-        let totalMinutesSaved = 0;
-        completed.forEach(m => {
-          if (m.completedAt && m.order?.createdAt) {
-            const start = new Date(m.order.createdAt);
-            const end = new Date(m.completedAt);
-            const diff = Math.max(1, Math.round((end - start) / (1000 * 60))); // Min 1 min
-            totalMinutesSaved += diff;
-          }
-        });
-        const avgTimeSaved = completed.length > 0 ? Math.round(totalMinutesSaved / completed.length) : 0;
+  const fetchStats = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      const token = sessionStorage.getItem('token');
+      const res = await axios.get('http://localhost:5000/api/matches/my-matches', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      const completed = res.data.filter(m => m.status === 'COMPLETED');
+      const earnings = completed.reduce((acc, m) => acc + (m.order?.deliveryFee || 0), 0);
+      
+      let totalMinutesSaved = 0;
+      completed.forEach(m => {
+        if (m.completedAt && m.order?.createdAt) {
+          const start = new Date(m.order.createdAt);
+          const end = new Date(m.completedAt);
+          const diff = Math.max(1, Math.round((end - start) / (1000 * 60))); // Min 1 min
+          totalMinutesSaved += diff;
+        }
+      });
+      const avgTimeSaved = completed.length > 0 ? Math.round(totalMinutesSaved / completed.length) : 0;
 
-        // Calculate daily earnings for last 7 days
-        const daily = new Array(7).fill(0);
-        const now = new Date();
-        now.setHours(23, 59, 59, 999);
-        
-        completed.forEach(m => {
-          if (!m.completedAt) return;
-          const compDate = new Date(m.completedAt);
-          const diffDays = Math.floor((now - compDate) / (1000 * 60 * 60 * 24));
-          if (diffDays >= 0 && diffDays < 7) {
-            // Index 6 is today, 5 is yesterday, etc.
-            daily[6 - diffDays] += (m.order?.deliveryFee || 0);
-          }
-        });
+      // Calculate daily earnings for last 7 days
+      const daily = new Array(7).fill(0);
+      const now = new Date();
+      now.setHours(23, 59, 59, 999);
+      
+      completed.forEach(m => {
+        if (!m.completedAt) return;
+        const compDate = new Date(m.completedAt);
+        const diffDays = Math.floor((now - compDate) / (1000 * 60 * 60 * 24));
+        if (diffDays >= 0 && diffDays < 7) {
+          // Index 6 is today, 5 is yesterday, etc.
+          daily[6 - diffDays] += (m.order?.deliveryFee || 0);
+        }
+      });
 
-        const maxDaily = Math.max(...daily, 100); // Dynamic scale with min 100
+      const maxDaily = Math.max(...daily, 100);
+      const reliabilityValue = res.data.length > 0 
+        ? Math.round((completed.length / res.data.length) * 100) 
+        : 0;
 
-        const reliabilityValue = res.data.length > 0 
-          ? Math.round((completed.length / res.data.length) * 100) 
-          : 0;
-
-        setStats(prev => ({
-          ...prev,
-          totalEarnings: user?.totalEarnings ?? earnings,
-          completedDeliveries: user?.deliveryCount ?? completed.length,
-          avgTimeSaved,
-          maxDaily,
-          reliability: reliabilityValue,
-          dailyEarnings: daily
-        }));
-      } catch (err) {
-        console.error('Fetch stats error:', err);
-      }
-    };
-    fetchStats();
+      setStats(prev => ({
+        ...prev,
+        totalEarnings: user?.totalEarnings ?? earnings,
+        completedDeliveries: user?.deliveryCount ?? completed.length,
+        avgTimeSaved,
+        maxDaily,
+        reliability: reliabilityValue,
+        dailyEarnings: daily
+      }));
+    } catch (err) {
+      console.error('Fetch stats error:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
   }, [user]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
+  const formatTime = (mins) => {
+    if (mins < 60) return `${mins}m`;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return `${h}h ${m}m`;
+  };
 
   return (
     <div className="space-y-10 pb-20">
+      <div className="flex justify-between items-end">
+         <div className="space-y-1">
+            <h2 className="text-3xl font-display text-white uppercase italic tracking-tighter">Performance Hub</h2>
+            <p className="text-muted text-[10px] font-mono tracking-widest uppercase">Live insights from your activity</p>
+         </div>
+         <button 
+           onClick={fetchStats}
+           disabled={isRefreshing}
+           className="bg-white/5 hover:bg-white/10 border border-white/5 p-3 rounded-2xl text-muted hover:text-brand-cyan transition-all disabled:opacity-50"
+         >
+            <RefreshCcw size={18} className={isRefreshing ? 'animate-spin text-brand-cyan' : ''} />
+         </button>
+      </div>
+
       {/* Top Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { label: 'Total Revenue', value: `₹${user?.totalEarnings ?? stats.totalEarnings}`, icon: <DollarSign size={20} />, color: 'text-brand-cyan', trend: 'Global' },
-          { label: 'Deliveries', value: user?.deliveryCount ?? stats.completedDeliveries, icon: <CheckCircle size={20} />, color: 'text-brand-green', trend: (user?.deliveryCount ?? stats.completedDeliveries).toString() },
-          { label: 'Time Saved', value: stats.avgTimeSaved > 0 ? `${stats.avgTimeSaved} min` : '0 min', icon: <Clock size={20} />, color: 'text-brand-amber', trend: 'Efficiency' },
+          { label: 'Total Revenue', value: `₹${stats.totalEarnings}`, icon: <DollarSign size={20} />, color: 'text-brand-cyan', trend: 'Global' },
+          { label: 'Deliveries', value: stats.completedDeliveries, icon: <CheckCircle size={20} />, color: 'text-brand-green', trend: 'Lifetime' },
+          { label: 'Time Saved', value: formatTime(stats.avgTimeSaved), icon: <Clock size={20} />, color: 'text-brand-amber', trend: 'Efficiency' },
           { label: 'Reliability', value: `${stats.reliability}%`, icon: <TrendingUp size={20} />, color: 'text-white', trend: stats.reliability > 90 ? 'EXCELLENT' : 'STABLE' },
         ].map((item, i) => (
           <motion.div 
-            key={i}
+            key={item.label}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
@@ -137,7 +163,7 @@ const Analytics = ({ user }) => {
                   </motion.div>
                 </div>
                 <span className="text-[9px] font-mono text-muted uppercase tracking-widest">
-                  {i === 6 ? 'Today' : `${6-i}D ago`}
+                  {i === 6 ? 'Today' : `${6-i}d ago`}
                 </span>
               </div>
             ))}
@@ -159,7 +185,7 @@ const Analytics = ({ user }) => {
                 { label: 'User Rating', value: 100 },
                 { label: 'Punctuality', value: 100 },
               ].map((metric, i) => (
-                <div key={i} className="space-y-3">
+                <div key={metric.label} className="space-y-3">
                   <div className="flex justify-between items-end px-1">
                     <span className="text-[9px] font-mono text-muted uppercase tracking-widest">{metric.label}</span>
                     <span className="text-xs font-bold text-white">{metric.value}%</span>
@@ -178,8 +204,8 @@ const Analytics = ({ user }) => {
           </div>
 
           <div className="mt-12 bg-bg-surface/50 border border-white/5 p-6 rounded-3xl text-center space-y-2">
-             <div className="text-[10px] font-mono text-brand-cyan font-bold tracking-widest uppercase">Newbie Tier</div>
-             <p className="text-[9px] text-muted italic leading-relaxed">Start your first delivery to begin climbing the trust ladder!</p>
+             <div className="text-[10px] font-mono text-brand-cyan font-bold tracking-widest uppercase">Verified Tier</div>
+             <p className="text-[9px] text-muted italic leading-relaxed">You are currently at the top tier of reliability!</p>
           </div>
         </motion.div>
       </div>
