@@ -239,8 +239,7 @@ const AppRoutes = () => {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    setUser(null);
-    navigate('/', { replace: true });
+    window.location.href = '/';
   };
 
   if (isLoading) return null;
