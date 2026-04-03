@@ -98,12 +98,17 @@ export const getMyTrips = async (req, res) => {
 
 export const getAvailableTrips = async (req, res) => {
   try {
-    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const now = new Date();
+    const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
 
     const trips = await prisma.trip.findMany({
       where: {
         status: { in: ['OPEN', 'IN_PROGRESS'] },
-        departureTime: { gte: twoHoursAgo }
+        departureTime: { gte: twoHoursAgo },
+        OR: [
+          { returnTime: null },
+          { returnTime: { gt: now } }
+        ]
       },
       include: {
         carrier: { select: { id: true, name: true, trustScore: true, profilePicUrl: true, email: true, collegeName: true, isOnline: true } }

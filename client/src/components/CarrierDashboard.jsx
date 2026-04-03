@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Navigation, Package, ChevronRight, MapPin, User, Activity, Smartphone, Zap, Trash2, Phone } from 'lucide-react';
+import { Navigation, Package, ChevronRight, MapPin, User, Activity, Smartphone, Zap, Trash2, Phone, Clock } from 'lucide-react';
 import LiveMap from './LiveMap';
 import useGPS from '../hooks/useGPS';
 import StudioModal from './StudioModal';
@@ -18,6 +18,7 @@ const CarrierDashboard = () => {
   const [destination, setDestination] = useState('');
   const [capacity, setCapacity] = useState(4);
   const [departureTime, setDepartureTime] = useState(''); 
+  const [returnTime, setReturnTime] = useState(''); 
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
   const socketRef = useRef(null);
   const currentTripRef = useRef(null);
@@ -76,11 +77,12 @@ const CarrierDashboard = () => {
     }
 
     const now = new Date();
+    const threshold = new Date(now.getTime() - 60000); // 1 minute grace for "NOW"
     const selectedDate = new Date(departureTime);
     const tenHoursFromNow = new Date(now.getTime() + 10 * 60 * 60 * 1000);
 
-    if (selectedDate < now) {
-      setModal({ isOpen: true, title: 'Clock Error', message: 'Departure time must be in the future.', type: 'warning' });
+    if (selectedDate < threshold) {
+      setModal({ isOpen: true, title: 'Clock Error', message: 'Departure time must be in the future (or now).', type: 'warning' });
       return;
     }
 
@@ -90,16 +92,25 @@ const CarrierDashboard = () => {
     }
 
     const departureIso = selectedDate.toISOString();
+    const returnIso = returnTime ? new Date(returnTime).toISOString() : null;
+
+    if (returnIso && new Date(returnIso) <= selectedDate) {
+      setModal({ isOpen: true, title: 'Timeline Error', message: 'Return time must be after departure time.', type: 'error' });
+      return;
+    }
+
     try {
       await axios.post('http://localhost:5000/api/trips', {
         destination,
         capacity: Number(capacity),
-        departureTime: departureIso
+        departureTime: departureIso,
+        returnTime: returnIso
       }, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
       setDestination('');
       setDepartureTime('');
+      setReturnTime('');
       await fetchData();
       setActiveTab('MY_TRIPS');
       
@@ -487,15 +498,61 @@ const CarrierDashboard = () => {
                 </div>
               </div>
               
-              <div className="space-y-4 group">
+              <div className="space-y-4">
+                <div className="flex justify-between items-center px-1">
+                  <label className="text-[10px] font-mono text-muted tracking-widest uppercase">Go Time</label>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      const now = new Date();
+                      const offset = now.getTimezoneOffset() * 60000;
+                      const localISOTime = (new Date(now - offset)).toISOString().slice(0, 16);
+                      setDepartureTime(localISOTime);
+                    }}
+                    className="text-[9px] font-black bg-brand-cyan/20 text-brand-cyan px-2 py-0.5 rounded border border-brand-cyan/30 hover:bg-brand-cyan hover:text-bg-deep transition-all"
+                  >
+                    NOW
+                  </button>
+                </div>
+                <div className="relative group">
+                  <Clock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted group-focus-within:text-brand-cyan transition-colors" />
+                  <input 
+                    type="datetime-local" 
+                    value={departureTime}
+                    onChange={e => setDepartureTime(e.target.value)}
+                    className="w-full bg-bg-surface/50 border border-white/5 rounded-2xl py-4 pl-12 pr-6 text-white outline-none focus:border-brand-cyan/30 hover:border-white/10 transition-all"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <label className="text-[10px] font-mono text-muted tracking-widest uppercase ml-1">Return Time (Approx)</label>
+                <div className="relative group">
+                  <Clock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted group-focus-within:text-brand-cyan transition-colors" />
+                  <input 
+                    type="datetime-local" 
+                    value={returnTime}
+                    onChange={e => setReturnTime(e.target.value)}
+                    className="w-full bg-bg-surface/50 border border-white/5 rounded-2xl py-4 pl-12 pr-6 text-white outline-none focus:border-brand-cyan/30 hover:border-white/10 transition-all font-mono text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-4 group md:col-span-2">
                 <label className="text-[10px] font-mono text-muted tracking-widest uppercase ml-1">Max Capacity (Items)</label>
-                <input 
-                  type="number" 
-                  min="1" max="50" step="1"
-                  value={capacity}
-                  onChange={e => setCapacity(Number(e.target.value))}
-                  className="w-full bg-bg-surface/50 border border-white/5 rounded-2xl py-4 px-6 text-brand-cyan text-xl font-bold outline-none focus:border-brand-cyan/30 hover:border-white/10 transition-all text-center"
-                />
+                <div className="relative group">
+                  <Package size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted group-focus-within:text-brand-cyan transition-colors" />
+                  <input 
+                    type="number" 
+                    min="1" max="20"
+                    value={capacity}
+                    onChange={e => setCapacity(Number(e.target.value))}
+                    className="w-full bg-bg-surface/50 border border-white/5 rounded-2xl py-4 pl-12 pr-6 text-brand-cyan text-lg font-display uppercase italic outline-none focus:border-brand-cyan/30 hover:border-white/10 transition-all font-black"
+                    placeholder="Enter maximum items"
+                    required
+                  />
+                </div>
               </div>
 
               <div className="md:col-span-2 space-y-4">

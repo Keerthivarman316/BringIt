@@ -33,6 +33,8 @@ const RecenterMap = ({ lat, lng }) => {
     if (lat && lng) {
       map.setView([lat, lng], map.getZoom(), { animate: true }); // Keep current zoom but center
     }
+    // Added invalidateSize to prevent "tile-leaking" glitches
+    setTimeout(() => { map.invalidateSize(); }, 200);
   }, [lat, lng, map]);
   return null;
 };
@@ -85,7 +87,10 @@ const LiveMap = ({ tripId }) => {
   }, [tripId]);
 
   return (
-    <div className="relative w-full h-full min-h-[400px] rounded-[32px] overflow-hidden border border-white/5 bg-bg-deep">
+    <div 
+      className="relative w-full h-full min-h-[400px] rounded-[32px] overflow-hidden border border-white/5 bg-bg-deep"
+      style={{ isolation: 'isolate', transform: 'translateZ(0)' }}
+    >
       {/* Diagnostic Overlay */}
       <div className="absolute top-6 right-6 z-[1000] flex flex-col gap-2 items-end">
         <div className={cn(
@@ -135,7 +140,7 @@ const LiveMap = ({ tripId }) => {
       <MapContainer 
         center={carrierLocation ? [carrierLocation.lat, carrierLocation.lng] : defaultCenter} 
         zoom={16} 
-        style={{ height: '100%', width: '100%' }}
+        style={{ height: '100%', width: '100%', borderRadius: 'inherit' }}
         zoomControl={false}
       >
         <TileLayer
