@@ -99,20 +99,14 @@ export const getMyTrips = async (req, res) => {
 export const getAvailableTrips = async (req, res) => {
   try {
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+
     const trips = await prisma.trip.findMany({
       where: {
-        status: 'OPEN',
-        departureTime: { gte: twoHoursAgo },
-        carrier: {
-          isOnline: true,
-          collegeName: {
-            equals: req.user.collegeName || 'IIIT Dharwad',
-            mode: 'insensitive'
-          }
-        }
+        status: { in: ['OPEN', 'IN_PROGRESS'] },
+        departureTime: { gte: twoHoursAgo }
       },
       include: {
-        carrier: { select: { id: true, name: true, trustScore: true, profilePicUrl: true } }
+        carrier: { select: { id: true, name: true, trustScore: true, profilePicUrl: true, email: true, collegeName: true, isOnline: true } }
       }
     });
     res.json(trips);
@@ -172,6 +166,45 @@ export const cancelTrip = async (req, res) => {
     res.json({ message: 'Trip cancelled successfully. All matched orders reverted.' });
   } catch (error) {
     console.error('Error cancelling trip:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+export const deleteTrip = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const trip = await prisma.trip.findUnique({
+      where: { id }
+    });
+
+    if (!trip) {
+      return res.status(404).json({ message: 'Trip not found' });
+    }
+
+    if (trip.carrierId !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized to delete this trip' });
+    }
+
+    if (trip.status !== 'COMPLETED' && trip.status !== 'CANCELLED') {
+      return res.status(400).json({ message: 'Can only delete completed or cancelled trips' });
+    }
+
+    // Process hard deletion in transaction
+    await prisma.$transaction(async (tx) => {
+      // 1. Delete associated route stops
+      await tx.routeStop.deleteMany({ where: { tripId: id } });
+
+      // 2. Delete associated matches
+      await tx.match.deleteMany({ where: { tripId: id } });
+
+      // 3. Delete the trip
+      await tx.trip.delete({ where: { id } });
+    });
+
+    res.json({ message: 'Trip history deleted successfully.' });
+  } catch (error) {
+    console.error('Error deleting trip:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 };

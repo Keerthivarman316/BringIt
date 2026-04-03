@@ -71,6 +71,8 @@ const RequesterDashboard = () => {
       setItemName('');
       setStoreName('');
       setBudget('');
+      setQuantity(1);
+      setDeliveryFee(25);
       setStep(1);
       fetchOrders();
     } catch (err) {
@@ -107,15 +109,32 @@ const RequesterDashboard = () => {
       
       {activeTrackingTripId && (
         <section className="glass rounded-[40px] p-1 border border-brand-cyan/20 overflow-hidden relative group">
-           <div className="absolute top-6 left-6 z-20 flex items-center gap-3 bg-bg-deep/80 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/5 shadow-2xl">
-              <div className="w-2 h-2 rounded-full bg-brand-cyan animate-pulse shadow-[0_0_8px_rgba(0,242,255,1)]" />
-              <span className="text-[10px] font-mono text-white font-bold tracking-widest uppercase">Live Tracking Active</span>
-              <button 
-                onClick={() => setActiveTrackingTripId(null)}
-                className="ml-4 text-[10px] font-mono text-brand-red font-bold hover:underline"
-              >
-                CLOSE MAP
-              </button>
+           <div className="absolute top-6 left-6 right-6 z-20 flex items-start justify-between pointer-events-none">
+             <div className="flex flex-col gap-3 pointer-events-auto">
+               <div className="flex items-center gap-3 bg-bg-deep/80 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/5 shadow-2xl w-fit">
+                  <div className="w-2 h-2 rounded-full bg-brand-cyan animate-pulse shadow-[0_0_8px_rgba(0,242,255,1)]" />
+                  <span className="text-[10px] font-mono text-white font-bold tracking-widest uppercase">Live Tracking Active</span>
+                  <button 
+                    onClick={() => setActiveTrackingTripId(null)}
+                    className="ml-4 text-[10px] font-mono text-brand-red font-bold hover:underline"
+                  >
+                    CLOSE MAP
+                  </button>
+               </div>
+               
+               {(()=>{
+                 const activeOrder = orders.find(o => o.match?.tripId === activeTrackingTripId);
+                 const carrier = activeOrder?.match?.trip?.carrier;
+                 if (!carrier) return null;
+                 return (
+                   <div className="bg-bg-deep/80 backdrop-blur-xl px-5 py-4 rounded-2xl border border-brand-cyan/20 flex flex-col gap-1 shadow-2xl w-fit">
+                     <div className="text-[9px] font-mono tracking-widest text-brand-cyan uppercase font-bold flex items-center gap-2"><User size={10} /> DELIVERY PARTNER</div>
+                     <div className="text-sm font-bold text-white uppercase">{carrier.name || 'Anonymous'}</div>
+                     <div className="text-[10px] font-mono text-brand-cyan uppercase">Trust Score: ★ {carrier.trustScore?.toFixed(1) || '1.0'}</div>
+                   </div>
+                 );
+               })()}
+             </div>
            </div>
            <div className="h-[400px] w-full rounded-[38px] overflow-hidden bg-bg-deep">
               <LiveMap tripId={activeTrackingTripId} />
@@ -186,9 +205,9 @@ const RequesterDashboard = () => {
                   <div className="space-y-4">
                      <div className="flex justify-between items-end mb-2">
                         <div className="flex items-center gap-3">
-                           {order.status === 'MATCHED' && (
+                            {order.status === 'MATCHED' && (
                               <button 
-                                onClick={(e) => { e.stopPropagation(); setActiveTrackingTripId(order.matches?.[0]?.tripId); }}
+                                onClick={(e) => { e.stopPropagation(); setActiveTrackingTripId(order.match?.tripId); }}
                                 className="bg-brand-cyan text-bg-deep px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase hover:brightness-110 transition-all"
                               >
                                 TRACK LIVE
@@ -339,17 +358,14 @@ const RequesterDashboard = () => {
                            </div>
                          </div>
                          
-                         <div className="space-y-4 pt-2">
-                           <div className="flex justify-between items-center ml-4 mr-2">
-                             <label className="text-[10px] font-mono text-muted tracking-widest uppercase">Quantity</label>
-                             <span className="text-xl font-bold text-brand-cyan uppercase">{quantity} items</span>
-                           </div>
+                         <div className="space-y-4 pt-2 group">
+                           <label className="text-[10px] font-mono text-muted tracking-widest uppercase ml-4">Quantity (Items)</label>
                            <input 
-                             type="range" 
-                             min="1" max="20" step="1"
+                             type="number" 
+                             min="1" max="50" step="1"
                              value={quantity}
-                             onChange={(e) => setQuantity(e.target.value)}
-                             className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-brand-cyan"
+                             onChange={(e) => setQuantity(Number(e.target.value))}
+                             className="w-full bg-bg-surface/50 border border-white/5 rounded-3xl py-5 px-6 text-white outline-none focus:border-brand-cyan/50 hover:border-white/10 transition-all font-heading text-xl"
                            />
                          </div>
                          
@@ -369,34 +385,29 @@ const RequesterDashboard = () => {
                         exit={{ x: -40, opacity: 0 }}
                         className="space-y-8"
                       >
-                         <div className="space-y-6">
-                            <div className="flex justify-between items-end">
-                               <label className="text-[10px] font-mono text-muted tracking-widest uppercase ml-4">Delivery Fee</label>
-                               <div className="text-2xl font-display text-brand-cyan">₹{deliveryFee}</div>
-                            </div>
+                         <div className="space-y-4 group">
+                            <label className="text-[10px] font-mono text-muted tracking-widest uppercase ml-4">Delivery Fee (₹)</label>
                             <input 
-                              type="range" 
-                              min="5" max="100" step="5"
+                              type="number" 
+                              min="5" max="1000" step="5"
                               value={deliveryFee}
-                              onChange={(e) => setDeliveryFee(e.target.value)}
-                              className="w-full h-2 bg-white/5 rounded-lg appearance-none cursor-pointer accent-brand-cyan"
+                              onChange={(e) => setDeliveryFee(Number(e.target.value))}
+                              className="w-full bg-bg-surface/50 border border-white/5 rounded-3xl py-5 px-6 text-brand-cyan outline-none focus:border-brand-cyan/50 hover:border-white/10 transition-all font-display text-2xl"
                             />
                             <div className="bg-brand-cyan/10 border border-brand-cyan/20 rounded-2xl p-4 text-[10px] font-bold text-center text-brand-cyan tracking-widest uppercase">
                                Recommended: ₹25+ for faster delivery
                             </div>
                          </div>
 
-                         <div className="space-y-6 pt-4 border-t border-white/5">
-                            <div className="flex justify-between items-end">
-                               <label className="text-[10px] font-mono text-muted tracking-widest uppercase ml-4">Item Budget (Max amount)</label>
-                               <div className="text-2xl font-display text-white">₹{budget || 0}</div>
-                            </div>
+                         <div className="space-y-4 pt-4 border-t border-white/5 group">
+                            <label className="text-[10px] font-mono text-muted tracking-widest uppercase ml-4">Item Budget Max (₹)</label>
                             <input 
-                              type="range" 
-                              min="0" max="2000" step="10"
-                              value={budget || 0}
-                              onChange={(e) => setBudget(e.target.value)}
-                              className="w-full h-2 bg-white/5 rounded-lg appearance-none cursor-pointer accent-white"
+                              type="number" 
+                              min="0" max="50000" step="10"
+                              value={budget}
+                              onChange={(e) => setBudget(Number(e.target.value))}
+                              className="w-full bg-bg-surface/50 border border-white/5 rounded-3xl py-5 px-6 text-white outline-none focus:border-white/20 hover:border-white/10 transition-all font-display text-2xl"
+                              placeholder="0"
                             />
                          </div>
 

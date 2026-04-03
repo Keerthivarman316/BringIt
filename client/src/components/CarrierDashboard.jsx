@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Navigation, Package, ChevronRight, MapPin, User, Activity, Smartphone, Zap } from 'lucide-react';
+import { Navigation, Package, ChevronRight, MapPin, User, Activity, Smartphone, Zap, Trash2 } from 'lucide-react';
 import LiveMap from './LiveMap';
 import useGPS from '../hooks/useGPS';
 import StudioModal from './StudioModal';
@@ -24,12 +24,16 @@ const CarrierDashboard = () => {
   const fetchData = useCallback(async () => {
     try {
       const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
-      const [pendingRes, tripsRes] = await Promise.all([
+      const [pendingRes, tripsRes, userRes] = await Promise.all([
         axios.get('http://localhost:5000/api/orders/pending', { headers }),
-        axios.get('http://localhost:5000/api/trips/my-trips', { headers })
+        axios.get('http://localhost:5000/api/trips/my-trips', { headers }),
+        axios.get('http://localhost:5000/api/auth/me', { headers })
       ]);
       setPendingOrders(pendingRes.data);
       setMyTrips(tripsRes.data);
+      if (userRes.data && typeof userRes.data.isOnline === 'boolean') {
+        setIsOnline(userRes.data.isOnline);
+      }
     } catch (err) {
       console.error('Fetch error:', err);
     }
@@ -155,6 +159,27 @@ const CarrierDashboard = () => {
           setModal({ isOpen: true, title: 'Trip Cancelled', message: 'The trip has been removed and orders reverted.', type: 'success' });
         } catch (err) {
           setModal({ isOpen: true, title: 'Action Failed', message: err.response?.data?.message || 'Could not cancel trip.', type: 'error' });
+        }
+      }
+    });
+  };
+
+  const handleDeleteTrip = (tripId) => {
+    setModal({
+      isOpen: true,
+      title: 'Delete Trip History?',
+      message: 'Are you sure you want to permanently delete this trip? This action cannot be undone.',
+      type: 'warning',
+      confirmText: 'YES, DELETE',
+      onConfirm: async () => {
+        try {
+          await axios.delete(`http://localhost:5000/api/trips/${tripId}`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          });
+          await fetchData();
+          setModal({ isOpen: true, title: 'Trip Deleted', message: 'The trip history has been permanently removed.', type: 'success' });
+        } catch (err) {
+          setModal({ isOpen: true, title: 'Action Failed', message: err.response?.data?.message || 'Could not delete trip.', type: 'error' });
         }
       }
     });
@@ -296,6 +321,14 @@ const CarrierDashboard = () => {
                                    CANCEL TRIP
                                  </button>
                                )}
+                               {(trip.status === 'COMPLETED' || trip.status === 'CANCELLED') && (
+                                 <button 
+                                   onClick={() => handleDeleteTrip(trip.id)}
+                                   className="text-[8px] font-mono font-bold text-muted hover:text-brand-red uppercase tracking-widest flex items-center gap-1 transition-colors"
+                                 >
+                                   <Trash2 size={10} /> DELETE HISTORY
+                                 </button>
+                               )}
                             </div>
                           </div>
                         </div>
@@ -319,17 +352,22 @@ const CarrierDashboard = () => {
                           <div className="text-[10px] font-mono text-white/40 tracking-[0.2em] uppercase">Matched Orders ({trip.matches.length})</div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                              {trip.matches.map(m => (
-                               <div key={m.id} className="bg-white/[0.03] border border-white/5 p-4 rounded-2xl flex items-center justify-between group/item">
+                               <div key={m.id} className={cn("border p-4 rounded-2xl flex items-center justify-between group/item transition-all", m.status === 'CANCELLED' || m.order?.status === 'CANCELLED' ? "bg-brand-red/5 border-brand-red/10 opacity-60 grayscale" : "bg-white/[0.03] border-white/5")}>
                                  <div className="flex items-center gap-4">
-                                   <div className="w-8 h-8 rounded-lg bg-bg-surface flex items-center justify-center text-brand-cyan">
+                                   <div className={cn("w-8 h-8 rounded-lg bg-bg-surface flex items-center justify-center", m.status === 'CANCELLED' || m.order?.status === 'CANCELLED' ? "text-brand-red/50" : "text-brand-cyan")}>
                                      <Package size={14} />
                                    </div>
                                    <div>
-                                     <div className="text-xs font-bold text-white">{m.order?.itemName}</div>
+                                     <div className={cn("text-xs font-bold uppercase", m.status === 'CANCELLED' || m.order?.status === 'CANCELLED' ? "text-white/40 line-through" : "text-white")}>{m.order?.itemName}</div>
                                      <div className="text-[8px] font-mono text-muted uppercase">To: {m.order?.requester?.name || 'Customer'}</div>
                                    </div>
                                  </div>
-                                 <div className="text-xs font-display text-brand-green italic">₹{m.order?.deliveryFee}</div>
+                                 <div className="flex flex-col items-end gap-1">
+                                    <div className={cn("text-xs font-display italic", m.status === 'CANCELLED' || m.order?.status === 'CANCELLED' ? "text-brand-red/50 line-through" : "text-brand-green")}>₹{m.order?.deliveryFee}</div>
+                                    {(m.status === 'CANCELLED' || m.order?.status === 'CANCELLED') && (
+                                       <span className="text-[8px] font-bold text-brand-red/80 uppercase tracking-widest bg-brand-red/10 px-2 rounded-sm border border-brand-red/20 shadow-xl py-0.5">Cancelled</span>
+                                    )}
+                                 </div>
                                </div>
                              ))}
                           </div>
@@ -349,28 +387,30 @@ const CarrierDashboard = () => {
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: 10 }}
-                      className="glass p-8 rounded-[32px] border border-white/5 flex flex-col md:flex-row justify-between items-center gap-8 group hover:border-brand-cyan/20 transition-all"
+                      className={cn("glass p-8 rounded-[32px] border flex flex-col md:flex-row justify-between items-center gap-8 group transition-all", match.status === 'CANCELLED' || match.order?.status === 'CANCELLED' ? "border-brand-red/10 bg-brand-red/5" : "border-white/5 hover:border-brand-cyan/20")}
                     >
-                      <div className="flex items-center gap-6 flex-1">
-                        <div className="w-16 h-16 rounded-2xl bg-bg-surface flex items-center justify-center text-brand-cyan">
+                      <div className={cn("flex items-center gap-6 flex-1", match.status === 'CANCELLED' || match.order?.status === 'CANCELLED' ? "opacity-50 grayscale" : "")}>
+                        <div className={cn("w-16 h-16 rounded-2xl bg-bg-surface flex items-center justify-center", match.status === 'CANCELLED' || match.order?.status === 'CANCELLED' ? "text-brand-red" : "text-brand-cyan")}>
                           <Package size={28} />
                         </div>
                         <div>
-                          <div className="text-[10px] font-mono text-muted tracking-widest uppercase mb-1">Accepted Order</div>
-                          <h3 className="text-2xl font-display text-white uppercase italic tracking-tight">{match.order?.itemName}</h3>
+                          <div className={cn("text-[10px] font-mono tracking-widest uppercase mb-1", match.status === 'CANCELLED' || match.order?.status === 'CANCELLED' ? "text-brand-red font-bold" : "text-muted")}>
+                             {match.status === 'CANCELLED' || match.order?.status === 'CANCELLED' ? 'Cancelled Match' : 'Accepted Order'}
+                          </div>
+                          <h3 className={cn("text-2xl font-display uppercase italic tracking-tight", match.status === 'CANCELLED' || match.order?.status === 'CANCELLED' ? "text-white/40 line-through" : "text-white")}>{match.order?.itemName}</h3>
                           <div className="flex items-center gap-4 mt-2">
                             <div className="flex items-center gap-2 text-[10px] font-mono text-muted uppercase">
                               <User size={10} className="text-brand-cyan" /> {match.order?.requester?.name || 'Customer'}
                             </div>
-                            <div className="flex items-center gap-2 text-[10px] font-mono text-brand-green font-bold uppercase">
+                            <div className="flex items-center gap-2 text-[10px] font-mono uppercase font-bold text-brand-green">
                               <Zap size={10} /> Fee: ₹{match.order?.deliveryFee}
                             </div>
                           </div>
                         </div>
                       </div>
 
-                      <div className="px-6 py-2 rounded-xl bg-brand-cyan/10 border border-brand-cyan/20 text-[10px] font-mono font-bold text-brand-cyan tracking-widest uppercase">
-                        {match.order?.status}
+                      <div className={cn("px-6 py-2 rounded-xl border text-[10px] font-mono font-bold tracking-widest uppercase", match.status === 'CANCELLED' || match.order?.status === 'CANCELLED' ? "bg-brand-red/10 border-brand-red/20 text-brand-red" : "bg-brand-cyan/10 border-brand-cyan/20 text-brand-cyan")}>
+                        {match.status === 'CANCELLED' || match.order?.status === 'CANCELLED' ? 'CANCELLED' : match.order?.status}
                       </div>
                     </motion.div>
                   ))
@@ -429,17 +469,14 @@ const CarrierDashboard = () => {
                 </div>
               </div>
               
-              <div className="space-y-4">
-                <div className="flex justify-between items-center px-1">
-                  <label className="text-[10px] font-mono text-muted tracking-widest uppercase">Max Items</label>
-                  <span className="text-xs font-bold text-brand-cyan uppercase">{capacity}</span>
-                </div>
+              <div className="space-y-4 group">
+                <label className="text-[10px] font-mono text-muted tracking-widest uppercase ml-1">Max Capacity (Items)</label>
                 <input 
-                  type="range" 
-                  min="1" max="10"
+                  type="number" 
+                  min="1" max="50" step="1"
                   value={capacity}
-                  onChange={e => setCapacity(e.target.value)}
-                  className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-brand-cyan"
+                  onChange={e => setCapacity(Number(e.target.value))}
+                  className="w-full bg-bg-surface/50 border border-white/5 rounded-2xl py-4 px-6 text-brand-cyan text-xl font-bold outline-none focus:border-brand-cyan/30 hover:border-white/10 transition-all text-center"
                 />
               </div>
 
