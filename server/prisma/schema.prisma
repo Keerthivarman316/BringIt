@@ -95,6 +95,7 @@ model User {
   studentIdVerified Boolean          @default(false)
   verificationTier  VerificationTier @default(UNVERIFIED)
   collegeName       String?
+  phone             String?
 
   // Trust graph
   trustScore    Float @default(1.0) // weighted by rater's own trust score

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Package, MapPin, Clock, Zap, Search, ChevronRight, Navigation, LayoutDashboard, Settings as SettingsIcon, Map, Activity, ShoppingBag } from 'lucide-react';
+import { Package, MapPin, Clock, Zap, Search, ChevronRight, Navigation, LayoutDashboard, Settings as SettingsIcon, Map, Activity, ShoppingBag, Phone } from 'lucide-react';
 import LiveMap from './LiveMap';
 import StudioModal from './StudioModal';
 
@@ -163,6 +163,12 @@ const RequesterDashboard = () => {
                                 <span className="text-[8px] font-mono text-muted uppercase">Verification</span>
                                 <span className="text-[10px] font-bold text-brand-green tracking-widest uppercase">Verified Student</span>
                              </div>
+                             <div className="flex justify-between items-center bg-brand-cyan/10 p-2 rounded-xl border border-brand-cyan/20">
+                                <span className="text-[8px] font-mono text-brand-cyan uppercase">Carrier Phone</span>
+                                <a href={`tel:${carrier.phone}`} className="text-[10px] font-black text-white hover:text-brand-cyan transition-colors flex items-center gap-2">
+                                  <Phone size={10} /> {carrier.phone || '987-xxx-xxxx'}
+                                </a>
+                             </div>
                           </motion.div>
                         )}
                       </AnimatePresence>
@@ -241,12 +247,24 @@ const RequesterDashboard = () => {
                      <div className="flex justify-between items-end mb-2">
                         <div className="flex items-center gap-3">
                             {order.status === 'MATCHED' && (
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); setActiveTrackingTripId(order.match?.tripId); }}
-                                className="bg-brand-cyan text-bg-deep px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase hover:brightness-110 transition-all"
-                              >
-                                TRACK LIVE
-                              </button>
+                              <>
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); setActiveTrackingTripId(order.match?.tripId); }}
+                                  className="bg-brand-cyan text-bg-deep px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase hover:brightness-110 transition-all"
+                                >
+                                  TRACK LIVE
+                                </button>
+                                {order.match?.trip?.carrier?.phone && (
+                                   <a 
+                                     href={`tel:${order.match.trip.carrier.phone}`}
+                                     onClick={(e) => e.stopPropagation()}
+                                     className="bg-bg-surface border border-white/5 text-muted p-2 rounded-xl hover:text-brand-cyan hover:border-brand-cyan/20 transition-all"
+                                     title="Call Partner"
+                                   >
+                                     <Phone size={14} />
+                                   </a>
+                                )}
+                              </>
                            )}
                            {(order.status === 'PENDING' || order.status === 'MATCHED') && (
                               <button 

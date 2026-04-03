@@ -50,7 +50,7 @@ export const getMyOrders = async (req, res) => {
           include: {
             trip: {
               include: {
-                carrier: { select: { name: true, profilePicUrl: true, trustScore: true, deliveryCount: true } }
+                carrier: { select: { name: true, profilePicUrl: true, trustScore: true, deliveryCount: true, phone: true } }
               }
             }
           }

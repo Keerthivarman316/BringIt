@@ -82,7 +82,7 @@ export const getMyTrips = async (req, res) => {
         matches: { 
           include: { 
             order: { 
-              include: { requester: { select: { id: true, name: true, email: true } } } 
+              include: { requester: { select: { id: true, name: true, email: true, phone: true } } } 
             } 
           } 
         },

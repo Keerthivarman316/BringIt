@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Navigation, Package, ChevronRight, MapPin, User, Activity, Smartphone, Zap, Trash2 } from 'lucide-react';
+import { Navigation, Package, ChevronRight, MapPin, User, Activity, Smartphone, Zap, Trash2, Phone } from 'lucide-react';
 import LiveMap from './LiveMap';
 import useGPS from '../hooks/useGPS';
 import StudioModal from './StudioModal';
@@ -410,9 +410,19 @@ const CarrierDashboard = () => {
                             <div className="flex items-center gap-2 text-[10px] font-mono text-muted uppercase">
                               <User size={10} className="text-brand-cyan" /> {match.order?.requester?.name || 'Customer'}
                             </div>
-                            <div className="flex items-center gap-2 text-[10px] font-mono uppercase font-bold text-brand-green">
+                            <div className="flex items-center gap-2 text-[10px] font-mono uppercase font-bold text-brand-green border-l border-white/10 pl-4">
                               <Zap size={10} /> Fee: ₹{match.order?.deliveryFee}
                             </div>
+                            {match.order?.requester?.phone && (
+                               <a 
+                                 href={`tel:${match.order.requester.phone}`}
+                                 onClick={(e) => e.stopPropagation()}
+                                 className="flex items-center gap-2 text-[10px] font-mono uppercase font-black text-brand-cyan bg-brand-cyan/10 px-3 py-1 rounded-lg border border-brand-cyan/20 ml-2"
+                                 title="Call Customer"
+                               >
+                                 <Phone size={10} /> {match.order.requester.phone}
+                               </a>
+                            )}
                           </div>
                         </div>
                       </div>
