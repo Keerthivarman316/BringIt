@@ -119,9 +119,9 @@ const Analytics = () => {
             
             <div className="space-y-6">
               {[
-                { label: 'Completion Rate', value: 94 },
-                { label: 'User Rating', value: 88 },
-                { label: 'Punctuality', value: 72 },
+                { label: 'Completion Rate', value: 0 },
+                { label: 'User Rating', value: 0 },
+                { label: 'Punctuality', value: 0 },
               ].map((metric, i) => (
                 <div key={i} className="space-y-3">
                   <div className="flex justify-between items-end px-1">
@@ -142,8 +142,8 @@ const Analytics = () => {
           </div>
 
           <div className="mt-12 bg-bg-surface/50 border border-white/5 p-6 rounded-3xl text-center space-y-2">
-             <div className="text-[10px] font-mono text-brand-cyan font-bold tracking-widest uppercase">Platinum Tier</div>
-             <p className="text-[9px] text-muted italic leading-relaxed">You are in the top 5% of carriers at IIIT Dharwad this week.</p>
+             <div className="text-[10px] font-mono text-brand-cyan font-bold tracking-widest uppercase">Newbie Tier</div>
+             <p className="text-[9px] text-muted italic leading-relaxed">Start your first delivery to begin climbing the trust ladder!</p>
           </div>
         </motion.div>
       </div>
