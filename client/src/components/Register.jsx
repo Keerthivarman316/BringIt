@@ -26,10 +26,11 @@ const Register = ({ setUser }) => {
         collegeName,
         phone
       });
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-      setUser(response.data.user);
-      const dashboardPath = response.data.user.role === 'CARRIER' 
+      const { user, token } = response.data;
+      sessionStorage.setItem('token', token);
+      sessionStorage.setItem('user', JSON.stringify(user));
+      setUser(user);
+      const dashboardPath = user.role === 'CARRIER' 
         ? '/dashboard/carrier' 
         : '/dashboard/requester';
       navigate(dashboardPath);

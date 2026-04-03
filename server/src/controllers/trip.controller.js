@@ -195,18 +195,11 @@ export const deleteTrip = async (req, res) => {
       return res.status(400).json({ message: 'Can only delete completed or cancelled trips' });
     }
 
-    // Process hard deletion in transaction
-    await prisma.$transaction(async (tx) => {
-      // 1. Delete associated route stops
-      await tx.routeStop.deleteMany({ where: { tripId: id } });
-
-      // 2. Delete associated matches
-      await tx.match.deleteMany({ where: { tripId: id } });
-
-      // 3. Delete the trip
-      await tx.trip.delete({ where: { id } });
+    // Process deletion - DB Cascade handles matches, route stops, etc.
+    await prisma.trip.delete({
+      where: { id }
     });
-
+    
     res.json({ message: 'Trip history deleted successfully.' });
   } catch (error) {
     console.error('Error deleting trip:', error);

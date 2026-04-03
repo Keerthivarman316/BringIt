@@ -5,7 +5,7 @@ import { Package, MapPin, Clock, Zap, Search, ChevronRight, Navigation, LayoutDa
 import LiveMap from './LiveMap';
 import StudioModal from './StudioModal';
 
-const RequesterDashboard = () => {
+const RequesterDashboard = ({ user, setUser }) => {
   const [orders, setOrders] = useState([]);
   const [isFormVisible, setIsFormVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -27,7 +27,7 @@ const RequesterDashboard = () => {
   const fetchTrips = async () => {
     try {
       const response = await axios.get('http://localhost:5000/api/trips/available', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
       });
       setAvailableTrips(response.data);
     } catch (err) {
@@ -38,7 +38,7 @@ const RequesterDashboard = () => {
   const fetchOrders = useCallback(async () => {
     try {
       const response = await axios.get('http://localhost:5000/api/orders/my-orders', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
       });
       setOrders(response.data);
     } catch (err) {
@@ -47,9 +47,20 @@ const RequesterDashboard = () => {
   }, []);
 
   useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const res = await axios.get('http://localhost:5000/api/auth/me', {
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
+        });
+        if (res.data.user && setUser) setUser(res.data.user);
+      } catch (err) { console.error('Profile fetch error:', err); }
+    };
+
+    fetchProfile();
     fetchOrders();
     fetchTrips();
     const interval = setInterval(() => {
+      fetchProfile();
       fetchOrders();
       fetchTrips();
     }, 10000);
@@ -66,7 +77,7 @@ const RequesterDashboard = () => {
         budget: Number(budget),
         urgency
       }, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
       });
       setIsFormVisible(false);
       setItemName('');
@@ -91,7 +102,7 @@ const RequesterDashboard = () => {
       onConfirm: async () => {
         try {
           await axios.patch(`http://localhost:5000/api/orders/${orderId}/cancel`, {}, {
-            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
           });
           fetchOrders();
           setModal({ isOpen: true, title: 'Order Cancelled', message: 'Your search was stopped successfully.', type: 'success' });
@@ -112,7 +123,7 @@ const RequesterDashboard = () => {
       onConfirm: async () => {
         try {
           await axios.delete(`http://localhost:5000/api/orders/${orderId}`, {
-            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
           });
           fetchOrders();
           setModal({ isOpen: true, title: 'Order Deleted', message: 'The record has been permanently removed.', type: 'success' });
@@ -122,6 +133,34 @@ const RequesterDashboard = () => {
       }
     });
   };
+
+  const handleCompleteOrder = (orderId) => {
+    setModal({
+      isOpen: true,
+      title: 'Confirm Receipt?',
+      message: 'By confirming, you agree that you have received your order. This will finalize the delivery for the carrier.',
+      type: 'confirm',
+      confirmText: 'Yes, I Received It',
+      onConfirm: async () => {
+        try {
+          await axios.patch(`http://localhost:5000/api/orders/${orderId}/complete`, {}, {
+            headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
+          });
+          fetchOrders();
+          if (setUser) {
+            const upRes = await axios.get('http://localhost:5000/api/auth/me', {
+              headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
+            });
+            setUser(upRes.data.user || upRes.data);
+          }
+          setModal({ isOpen: true, title: 'Delivery Finalized', message: 'Thank you for using BringIt! The carrier has been notified.', type: 'success' });
+        } catch (err) {
+          setModal({ isOpen: true, title: 'Action Failed', message: 'Failed to complete order.', type: 'error' });
+        }
+      }
+    });
+  };
+
   const handleRepost = (order) => {
     // Extract base item name if it contains "Nx " prefix
     const baseName = order.itemName.includes('x ') ? order.itemName.split('x ').slice(1).join('x ') : order.itemName;
@@ -246,7 +285,7 @@ const RequesterDashboard = () => {
                 key={order.id}
                 layoutId={order.id}
                 className={cn(
-                  "flex-shrink-0 w-full glass h-[180px] rounded-[32px] p-6 flex flex-col justify-between group cursor-pointer hover:border-brand-cyan/40 transition-all",
+                  "flex-shrink-0 w-full glass min-h-[180px] h-auto rounded-[32px] p-6 flex flex-col justify-between group cursor-pointer hover:border-brand-cyan/40 transition-all",
                   order.urgency === 'URGENT' ? "border-brand-red/50 shadow-lg shadow-brand-red/5" : "border-white/5"
                 )}
                >
@@ -264,9 +303,9 @@ const RequesterDashboard = () => {
                         {order.status}
                      </div>
                   </div>
-                  <div className="space-y-4">
-                     <div className="flex justify-between items-end mb-2">
-                        <div className="flex items-center gap-3">
+                  <div className="space-y-4 mt-auto">
+                     <div className="flex flex-wrap justify-between items-end gap-y-4">
+                        <div className="flex flex-wrap items-center gap-2">
                             {order.status === 'MATCHED' && (
                               <>
                                 <button 
@@ -275,25 +314,35 @@ const RequesterDashboard = () => {
                                 >
                                   TRACK LIVE
                                 </button>
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); handleCancelOrder(order.id); }}
+                                  className="bg-bg-surface border border-white/10 text-brand-red px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase hover:bg-brand-red/10 transition-all ml-2"
+                                >
+                                  CANCEL
+                                </button>
                                 {order.match?.trip?.carrier?.phone && (
                                    <a 
                                      href={`tel:${order.match.trip.carrier.phone}`}
                                      onClick={(e) => e.stopPropagation()}
-                                     className="bg-bg-surface border border-white/5 text-muted p-2 rounded-xl hover:text-brand-cyan hover:border-brand-cyan/20 transition-all"
+                                     className="bg-bg-surface border border-white/5 text-muted p-2 rounded-xl hover:text-brand-cyan hover:border-brand-cyan/20 transition-all ml-2"
                                      title="Call Partner"
                                    >
                                      <Phone size={14} />
                                    </a>
                                 )}
                               </>
-                           )}                            {(order.status === 'PENDING' || order.status === 'MATCHED') && (
+                           )}
+                           
+                           {(order.status === 'PENDING' || order.status === 'DELIVERED') && (
                               <div className="flex items-center gap-2">
-                                <button 
-                                  onClick={(e) => { e.stopPropagation(); handleCancelOrder(order.id); }}
-                                  className="bg-bg-surface border border-white/10 text-brand-red px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase hover:bg-brand-red/10 transition-all"
-                                >
-                                  CANCEL
-                                </button>
+                                {order.status === 'PENDING' && (
+                                  <button 
+                                    onClick={(e) => { e.stopPropagation(); handleCancelOrder(order.id); }}
+                                    className="bg-bg-surface border border-white/10 text-brand-red px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase hover:bg-brand-red/10 transition-all"
+                                  >
+                                    CANCEL
+                                  </button>
+                                )}
                                 <button 
                                   onClick={(e) => { e.stopPropagation(); handleDeleteOrder(order.id); }}
                                   className="bg-bg-surface/50 border border-white/5 text-muted p-2 rounded-xl hover:text-brand-red hover:border-brand-red/20 transition-all"
@@ -302,6 +351,14 @@ const RequesterDashboard = () => {
                                   <Trash2 size={14} />
                                 </button>
                               </div>
+                            )}
+                            {['MATCHED', 'PICKED_UP', 'IN_TRANSIT'].includes(order.status) && (
+                               <button 
+                                 onClick={(e) => { e.stopPropagation(); handleCompleteOrder(order.id); }}
+                                 className="bg-brand-green/20 border border-brand-green/30 text-brand-green px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase hover:bg-brand-green/30 transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.1)]"
+                               >
+                                 <CheckCircle size={10} /> CONFIRM RECEIPT
+                               </button>
                             )}
                             {order.status === 'CANCELLED' && (
                                <div className="flex items-center gap-2">
@@ -326,11 +383,11 @@ const RequesterDashboard = () => {
                      </div>
                      
                      <div className="h-1 bg-white/5 rounded-full overflow-hidden">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ width: order.status === 'PENDING' ? '10%' : order.status === 'MATCHED' ? '50%' : '100%' }}
-                          className={cn("h-full transition-all duration-1000", order.status === 'PENDING' ? "bg-brand-amber" : "bg-brand-cyan")}
-                        />
+                         <motion.div 
+                           initial={{ width: 0 }}
+                           animate={{ width: (order.status === 'PENDING') ? '10%' : (order.status === 'MATCHED' || order.status === 'PICKED_UP' || order.status === 'IN_TRANSIT') ? '60%' : '100%' }}
+                           className={cn("h-full transition-all duration-1000 shadow-[0_0_8px_rgba(0,242,255,0.3)]", (order.status === 'PENDING') ? "bg-brand-amber" : (order.status === 'CANCELLED' || order.status === 'DISPUTED') ? "bg-brand-red" : "bg-brand-cyan")}
+                         />
                      </div>
                   </div>
                </motion.div>

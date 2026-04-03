@@ -3,12 +3,13 @@ import { motion } from 'framer-motion';
 import { TrendingUp, DollarSign, CheckCircle, Clock, BarChart3, ArrowUpRight } from 'lucide-react';
 import axios from 'axios';
 
-const Analytics = () => {
+const Analytics = ({ user }) => {
   const [stats, setStats] = useState({
     totalEarnings: 0,
     completedDeliveries: 0,
     activeTime: 0,
     reliability: 0,
+    avgTimeSaved: 0,
     dailyEarnings: [0, 0, 0, 0, 0, 0, 0],
     weeklyVolume: [0, 0, 0, 0, 0, 0, 0]
   });
@@ -16,37 +17,66 @@ const Analytics = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
+        const token = sessionStorage.getItem('token');
         const res = await axios.get('http://localhost:5000/api/matches/my-matches', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          headers: { Authorization: `Bearer ${token}` }
         });
+        
         const completed = res.data.filter(m => m.status === 'COMPLETED');
         const earnings = completed.reduce((acc, m) => acc + (m.order?.deliveryFee || 0), 0);
         
+        let totalMinutesSaved = 0;
+        completed.forEach(m => {
+          if (m.completedAt && m.order?.createdAt) {
+            const start = new Date(m.order.createdAt);
+            const end = new Date(m.completedAt);
+            const diff = Math.max(0, Math.floor((end - start) / (1000 * 60)));
+            totalMinutesSaved += diff;
+          }
+        });
+        const avgTimeSaved = completed.length > 0 ? Math.round(totalMinutesSaved / completed.length) : 0;
+
+        // Calculate daily earnings for last 7 days
+        const daily = new Array(7).fill(0);
+        const now = new Date();
+        
+        completed.forEach(m => {
+          if (!m.completedAt) return;
+          const compDate = new Date(m.completedAt);
+          const diffDays = Math.floor((now - compDate) / (1000 * 60 * 60 * 24));
+          if (diffDays >= 0 && diffDays < 7) {
+            // Index 6 is today, 5 is yesterday, etc.
+            daily[6 - diffDays] += (m.order?.deliveryFee || 0);
+          }
+        });
+
         const reliabilityValue = res.data.length > 0 
           ? Math.round((completed.length / res.data.length) * 100) 
           : 0;
 
         setStats(prev => ({
           ...prev,
-          totalEarnings: earnings,
-          completedDeliveries: completed.length,
-          reliability: reliabilityValue
+          totalEarnings: user?.totalEarnings ?? earnings,
+          completedDeliveries: user?.deliveryCount ?? completed.length,
+          avgTimeSaved,
+          reliability: reliabilityValue,
+          dailyEarnings: daily
         }));
       } catch (err) {
         console.error('Fetch stats error:', err);
       }
     };
     fetchStats();
-  }, []);
+  }, [user]);
 
   return (
     <div className="space-y-10 pb-20">
       {/* Top Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { label: 'Total Revenue', value: `₹${stats.totalEarnings}`, icon: <DollarSign size={20} />, color: 'text-brand-cyan', trend: stats.completedDeliveries > 0 ? '+New' : 'Zero' },
-          { label: 'Deliveries', value: stats.completedDeliveries, icon: <CheckCircle size={20} />, color: 'text-brand-green', trend: stats.completedDeliveries.toString() },
-          { label: 'Avg. Speed', value: stats.completedDeliveries > 0 ? '---' : '0 min', icon: <Clock size={20} />, color: 'text-brand-amber', trend: '-' },
+          { label: 'Total Revenue', value: `₹${user?.totalEarnings ?? stats.totalEarnings}`, icon: <DollarSign size={20} />, color: 'text-brand-cyan', trend: 'Global' },
+          { label: 'Deliveries', value: user?.deliveryCount ?? stats.completedDeliveries, icon: <CheckCircle size={20} />, color: 'text-brand-green', trend: (user?.deliveryCount ?? stats.completedDeliveries).toString() },
+          { label: 'Time Saved', value: stats.avgTimeSaved > 0 ? `${stats.avgTimeSaved} min` : '0 min', icon: <Clock size={20} />, color: 'text-brand-amber', trend: 'Efficiency' },
           { label: 'Reliability', value: `${stats.reliability}%`, icon: <TrendingUp size={20} />, color: 'text-white', trend: stats.reliability > 90 ? 'EXCELLENT' : 'STABLE' },
         ].map((item, i) => (
           <motion.div 
@@ -119,9 +149,9 @@ const Analytics = () => {
             
             <div className="space-y-6">
               {[
-                { label: 'Completion Rate', value: 0 },
-                { label: 'User Rating', value: 0 },
-                { label: 'Punctuality', value: 0 },
+                { label: 'Completion Rate', value: stats.reliability },
+                { label: 'User Rating', value: 100 },
+                { label: 'Punctuality', value: 100 },
               ].map((metric, i) => (
                 <div key={i} className="space-y-3">
                   <div className="flex justify-between items-end px-1">

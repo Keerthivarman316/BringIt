@@ -53,7 +53,7 @@ const LiveMap = ({ tripId }) => {
     const fetchInitialLocation = async () => {
       try {
         const res = await axios.get(`http://localhost:5000/api/trips/${tripId}`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
         });
         if (res.data.currentLat && res.data.currentLng) {
           const loc = { 

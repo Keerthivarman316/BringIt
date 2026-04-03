@@ -14,12 +14,12 @@ const Login = ({ setUser }) => {
     e.preventDefault();
     try {
       const response = await axios.post('http://localhost:5000/api/auth/login', { email, password });
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-      setUser(response.data.user);
-      const dashboardPath = response.data.user.role === 'CARRIER' 
-        ? '/dashboard/carrier' 
-        : '/dashboard/requester';
+      const { user, token } = response.data;
+      sessionStorage.setItem('token', token);
+      sessionStorage.setItem('user', JSON.stringify(user));
+      setUser(user);
+      
+      const dashboardPath = user.role === 'CARRIER' ? '/dashboard/carrier' : '/dashboard/requester';
       navigate(dashboardPath);
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed. Please check your details.');

@@ -50,7 +50,36 @@ export const createMatch = async (req, res) => {
     res.status(201).json(match);
 
   } catch (error) {
-    console.error('Error creating Match:', error);
     res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+};
+
+export const getMyMatches = async (req, res) => {
+  try {
+    const matches = await prisma.match.findMany({
+      where: { carrierId: req.user.id },
+      include: {
+        order: {
+          select: {
+            itemName: true,
+            storeName: true,
+            deliveryFee: true,
+            budget: true,
+            createdAt: true
+          }
+        },
+        trip: {
+          select: {
+            destination: true,
+            departureTime: true
+          }
+        }
+      },
+      orderBy: { acceptedAt: 'desc' }
+    });
+    res.json(matches);
+  } catch (error) {
+    console.error('Error fetching my matches:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 };

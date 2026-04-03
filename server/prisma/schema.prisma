@@ -100,6 +100,7 @@ model User {
   // Trust graph
   trustScore    Float @default(1.0) // weighted by rater's own trust score
   deliveryCount Int   @default(0) // increments on each successful delivery
+  totalEarnings Float @default(0.0) // carrier's accumulated earnings from delivery fees
 
   isOnline          Boolean          @default(false)
   profilePicUrl String?
@@ -210,10 +211,10 @@ model Order {
 model Match {
   id     String @id @default(cuid())
   tripId String
-  trip   Trip   @relation(fields: [tripId], references: [id])
+  trip   Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
   orderId String @unique
-  order   Order  @relation(fields: [orderId], references: [id])
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   carrierId String
   carrier   User   @relation("CarrierMatches", fields: [carrierId], references: [id])
@@ -243,7 +244,7 @@ model Match {
 model RouteStop {
   id     String @id @default(cuid())
   tripId String
-  trip   Trip   @relation(fields: [tripId], references: [id])
+  trip   Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
   stopOrder   Int // greedy nearest-neighbor sequence
   address     String
@@ -263,7 +264,7 @@ model RouteStop {
 model Review {
   id      String @id @default(cuid())
   matchId String @unique
-  match   Match  @relation(fields: [matchId], references: [id])
+  match   Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
 
   reviewerId String
   reviewer   User   @relation("ReviewsGiven", fields: [reviewerId], references: [id])
@@ -359,7 +360,7 @@ model Notification {
 model CarbonLog {
   id      String @id @default(cuid())
   matchId String @unique
-  match   Match  @relation(fields: [matchId], references: [id])
+  match   Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
   userId  String
   user    User   @relation(fields: [userId], references: [id])
 

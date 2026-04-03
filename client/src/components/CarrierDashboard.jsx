@@ -7,12 +7,12 @@ import LiveMap from './LiveMap';
 import useGPS from '../hooks/useGPS';
 import StudioModal from './StudioModal';
 
-const CarrierDashboard = () => {
+const CarrierDashboard = ({ user, setUser }) => {
   const [pendingOrders, setPendingOrders] = useState([]);
   const [myTrips, setMyTrips] = useState([]);
   const [isLocationSharing, setIsLocationSharing] = useState(false);
   const [activeTab, setActiveTab] = useState('AVAILABLE');
-  const [isOnline, setIsOnline] = useState(false);
+  const [isOnline, setIsOnline] = useState(user?.isOnline || false);
   
   // Trip creation state
   const [destination, setDestination] = useState('');
@@ -31,7 +31,8 @@ const CarrierDashboard = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
+      const token = sessionStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
       const [ordersRes, tripsRes, authRes] = await Promise.all([
         axios.get('http://localhost:5000/api/orders/pending', { headers }),
         axios.get('http://localhost:5000/api/trips/my-trips', { headers }),
@@ -39,8 +40,13 @@ const CarrierDashboard = () => {
       ]);
       setPendingOrders(ordersRes.data);
       setMyTrips(tripsRes.data);
-      if (authRes.data && authRes.data.isOnline !== undefined) {
-        setIsOnline(authRes.data.isOnline);
+      if (authRes.data && setUser) {
+        setUser(authRes.data.user || authRes.data);
+        if (authRes.data.user?.isOnline !== undefined) {
+           setIsOnline(authRes.data.user.isOnline);
+        } else if (authRes.data.isOnline !== undefined) {
+           setIsOnline(authRes.data.isOnline);
+        }
       }
     } catch (err) {
       console.error('Fetch data error:', err);
@@ -106,7 +112,7 @@ const CarrierDashboard = () => {
         departureTime: departureIso,
         returnTime: returnIso
       }, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
       });
       setDestination('');
       setDepartureTime('');
@@ -117,7 +123,7 @@ const CarrierDashboard = () => {
       // Auto-toggle online status for visibility
       try {
         await axios.patch('http://localhost:5000/api/auth/status', { isOnline: true }, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
         });
         setIsOnline(true);
       } catch (err) {
@@ -131,12 +137,12 @@ const CarrierDashboard = () => {
   };
 
   const handleToggleOnline = async () => {
-    const nextStatus = !isOnline;
     try {
-      await axios.patch('http://localhost:5000/api/auth/status', { isOnline: nextStatus }, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      const res = await axios.patch('http://localhost:5000/api/auth/status', { isOnline: !isOnline }, {
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
       });
-      setIsOnline(nextStatus);
+      setIsOnline(res.data.isOnline);
+      if (setUser) setUser(prev => ({ ...prev, isOnline: res.data.isOnline }));
     } catch (err) {
       setModal({ isOpen: true, title: 'Connection Issue', message: 'Could not sync online status with the server.', type: 'error' });
     }
@@ -152,7 +158,7 @@ const CarrierDashboard = () => {
         tripId: currentTrip.id,
         orderId 
       }, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
       });
       await fetchData();
       setModal({ isOpen: true, title: 'Order Accepted', message: 'The order has been matched to your trip.', type: 'success' });
@@ -171,7 +177,7 @@ const CarrierDashboard = () => {
       onConfirm: async () => {
         try {
           await axios.patch(`http://localhost:5000/api/trips/${tripId}/cancel`, {}, {
-            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
           });
           await fetchData();
           setModal({ isOpen: true, title: 'Trip Cancelled', message: 'The trip has been removed and orders reverted.', type: 'success' });
@@ -192,12 +198,33 @@ const CarrierDashboard = () => {
       onConfirm: async () => {
         try {
           await axios.delete(`http://localhost:5000/api/trips/${tripId}`, {
-            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
           });
           await fetchData();
           setModal({ isOpen: true, title: 'Trip Deleted', message: 'The trip history has been permanently removed.', type: 'success' });
         } catch (err) {
           setModal({ isOpen: true, title: 'Action Failed', message: err.response?.data?.message || 'Could not delete trip.', type: 'error' });
+        }
+      }
+    });
+  };
+
+  const handleDeleteOrder = (orderId) => {
+    setModal({
+      isOpen: true,
+      title: 'Delete History?',
+      message: 'This will remove the delivery record from your dashboard. It will not affect your earnings.',
+      type: 'warning',
+      confirmText: 'YES, DELETE',
+      onConfirm: async () => {
+        try {
+          await axios.delete(`http://localhost:5000/api/orders/${orderId}`, {
+            headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
+          });
+          await fetchData();
+          setModal({ isOpen: true, title: 'History Deleted', message: 'The record has been permanently removed.', type: 'success' });
+        } catch (err) {
+          setModal({ isOpen: true, title: 'Action Failed', message: err.response?.data?.message || 'Could not delete record.', type: 'error' });
         }
       }
     });
@@ -438,8 +465,19 @@ const CarrierDashboard = () => {
                         </div>
                       </div>
 
-                      <div className={cn("px-6 py-2 rounded-xl border text-[10px] font-mono font-bold tracking-widest uppercase", match.status === 'CANCELLED' || match.order?.status === 'CANCELLED' ? "bg-brand-red/10 border-brand-red/20 text-brand-red" : "bg-brand-cyan/10 border-brand-cyan/20 text-brand-cyan")}>
-                        {match.status === 'CANCELLED' || match.order?.status === 'CANCELLED' ? 'CANCELLED' : match.order?.status}
+                      <div className="flex items-center gap-3">
+                        <div className={cn("px-6 py-2 rounded-xl border text-[10px] font-mono font-bold tracking-widest uppercase", match.status === 'CANCELLED' || match.order?.status === 'CANCELLED' ? "bg-brand-red/10 border-brand-red/20 text-brand-red" : "bg-brand-cyan/10 border-brand-cyan/20 text-brand-cyan")}>
+                          {match.status === 'CANCELLED' || match.order?.status === 'CANCELLED' ? 'CANCELLED' : match.order?.status}
+                        </div>
+                        {(match.status === 'COMPLETED' || match.status === 'CANCELLED' || match.order?.status === 'DELIVERED') && (
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); handleDeleteOrder(match.orderId); }}
+                            className="p-2 rounded-xl bg-bg-surface border border-white/5 text-muted hover:text-brand-red transition-all"
+                            title="Delete History"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </div>
                     </motion.div>
                   ))
@@ -635,7 +673,11 @@ const CarrierDashboard = () => {
               </div>
               <div className="flex justify-between mt-2">
                  <span className="text-[8px] font-mono text-muted uppercase">Deliveries completed</span>
-                 <span className="text-[8px] font-mono text-white/50 uppercase">0</span>
+                 <span className="text-[8px] font-mono text-white/50 uppercase">{user?.deliveryCount || 0}</span>
+              </div>
+              <div className="flex justify-between mt-1">
+                 <span className="text-[8px] font-mono text-muted uppercase">Total Earnings</span>
+                 <span className="text-[8px] font-mono text-brand-green font-bold uppercase">₹{user?.totalEarnings || 0}</span>
               </div>
            </div>
         </div>

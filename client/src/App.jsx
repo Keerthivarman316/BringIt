@@ -23,7 +23,7 @@ const LiveTrackingPage = () => {
     const findActiveTrip = async () => {
       try {
         const res = await axios.get('http://localhost:5000/api/orders/my-orders', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
         });
         // Find first order that is matched and has a trip
         const matchedOrder = res.data.find(o => 
@@ -141,7 +141,7 @@ const Sidebar = ({ user, handleLogout }) => {
               <div className="flex justify-between items-center">
                 <span className="text-[9px] text-muted font-mono tracking-widest uppercase">Total Earnings</span>
               </div>
-              <div className="text-2xl font-display text-white tracking-widest font-black">₹ 0</div>
+              <div className="text-2xl font-display text-brand-green tracking-widest font-black">₹{user?.totalEarnings || 0}</div>
           </div>
         )}
 
@@ -281,26 +281,52 @@ const AppRoutes = () => {
     const savedTheme = localStorage.getItem('theme') || 'dark';
     document.documentElement.setAttribute('data-theme', savedTheme);
 
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (e) {
-        localStorage.removeItem('user');
+    const fetchProfile = async () => {
+      // PROACTIVELY MIGRATE: Copy from localStorage if sessionStorage is empty for this tab session
+      const existingToken = localStorage.getItem('token');
+      const existingUser = localStorage.getItem('user');
+      if (existingToken && !sessionStorage.getItem('token')) {
+        sessionStorage.setItem('token', existingToken);
+        if (existingUser) sessionStorage.setItem('user', existingUser);
       }
-    }
-    setIsLoading(false);
+
+      const token = sessionStorage.getItem('token');
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
+      try {
+        const res = await axios.get('http://localhost:5000/api/auth/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.data.user) {
+          setUser(res.data.user);
+          sessionStorage.setItem('user', JSON.stringify(res.data.user));
+        }
+      } catch (err) {
+        console.error('Profile refresh failed:', err);
+        if (err.response?.status === 401) handleLogout();
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProfile();
+    const profileInterval = setInterval(fetchProfile, 10000);
 
     const socket = io('http://localhost:5000');
     socket.on('connect', () => setSocketStatus('CONNECTED'));
     socket.on('disconnect', () => setSocketStatus('OFFLINE'));
 
-    return () => socket.disconnect();
+    return () => {
+      socket.disconnect();
+      clearInterval(profileInterval);
+    };
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
     window.location.href = '/';
   };
 
@@ -310,26 +336,21 @@ const AppRoutes = () => {
     <MainLayout user={user} handleLogout={handleLogout} socketStatus={socketStatus}>
       <Routes>
         <Route path="/" element={<Landing user={user} />} />
-        
         <Route path="/login" element={<Login setUser={setUser} />} />
-        
         <Route path="/register" element={<Register setUser={setUser} />} />
-
         <Route path="/dashboard/requester" element={
           <ProtectedRoute user={user} requiredRole="REQUESTER">
-            <RequesterDashboard />
+            <RequesterDashboard user={user} setUser={setUser} />
           </ProtectedRoute>
         } />
-
         <Route path="/dashboard/carrier" element={
           <ProtectedRoute user={user} requiredRole="CARRIER">
-            <CarrierDashboard />
+            <CarrierDashboard user={user} setUser={setUser} />
           </ProtectedRoute>
         } />
-
         <Route path="/analytics" element={
           <ProtectedRoute user={user} requiredRole="CARRIER">
-            <Analytics />
+            <Analytics user={user} />
           </ProtectedRoute>
         } />
 

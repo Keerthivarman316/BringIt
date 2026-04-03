@@ -34,8 +34,7 @@ export const createOrder = async (req, res) => {
 
     res.status(201).json(order);
   } catch (error) {
-    console.error('Error creating Order:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ message: 'Internal server error', error: error.message });
   }
 };
 
@@ -139,7 +138,7 @@ export const cancelOrder = async (req, res) => {
     }
 
     if (order.status !== 'PENDING' && order.status !== 'MATCHED') {
-      return res.status(400).json({ message: 'Cannot cancel order in current status' });
+      return res.status(400).json({ message: 'Cannot cancel order once it has been picked up or delivered' });
     }
 
     // Process cancellation
@@ -174,23 +173,89 @@ export const deleteOrder = async (req, res) => {
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    if (order.requesterId !== req.user.id) {
-      return res.status(403).json({ message: 'Not authorized to delete this order' });
+    // Case 1: Requester deletes the entire order
+    if (order.requesterId === req.user.id) {
+      await prisma.order.delete({
+        where: { id }
+      });
+      return res.json({ message: 'Order history cleared permanently' });
     }
 
-    // Process hard deletion
-    await prisma.$transaction([
-      ...(order.match ? [prisma.match.delete({
+    // Case 2: Carrier deletes their matching history
+    if (order.match && order.match.carrierId === req.user.id) {
+      await prisma.match.delete({
         where: { id: order.match.id }
-      })] : []),
-      prisma.order.delete({
-        where: { id }
-      })
-    ]);
+      });
+      return res.json({ message: 'Delivery record removed from history' });
+    }
 
-    res.json({ message: 'Order deleted permanently' });
+    return res.status(403).json({ message: 'Not authorized to delete this record' });
   } catch (error) {
     console.error('Error deleting Order:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+export const completeOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: { match: true }
+    });
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    if (order.requesterId !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized to complete this order' });
+    }
+
+    const validStatuses = ['MATCHED', 'PICKED_UP', 'IN_TRANSIT'];
+    if (!validStatuses.includes(order.status)) {
+      return res.status(400).json({ message: 'Order cannot be completed in current status' });
+    }
+
+    // Process completion in a transaction
+    await prisma.$transaction(async (tx) => {
+      // 1. Update Order Status
+      await tx.order.update({
+        where: { id },
+        data: { status: 'DELIVERED' }
+      });
+
+      // 2. Wrap up Match and User Earnings
+      if (order.match) {
+        await tx.match.update({
+          where: { id: order.match.id },
+          data: { status: 'COMPLETED', completedAt: new Date() }
+        });
+
+        await tx.user.update({
+          where: { id: order.match.carrierId },
+          data: { 
+            deliveryCount: { increment: 1 },
+            totalEarnings: { increment: order.deliveryFee }
+          }
+        });
+
+        // 3. AUTO-COMPLETE TRIP
+        // Check if there are other active matches for this trip, if not, or per user request:
+        // By user requirement: "after delivering the order the trip should get canceled/completed"
+        if (order.match.tripId) {
+          await tx.trip.update({
+            where: { id: order.match.tripId },
+            data: { status: 'COMPLETED' }
+          });
+        }
+      }
+    });
+
+    res.json({ message: 'Order marked as delivered and trip completed successfully' });
+  } catch (error) {
+    console.error('Error completing Order:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 };

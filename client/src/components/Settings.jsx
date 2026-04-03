@@ -19,7 +19,7 @@ const ToggleSwitch = ({ enabled, onToggle }) => (
 
 const Settings = () => {
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const user = JSON.parse(sessionStorage.getItem('user') || '{}');
   const [toggles, setToggles] = useState({
     'Push Notifications': true,
     'GPS Tracking': true,
@@ -50,7 +50,7 @@ const Settings = () => {
       const fetchHistory = async () => {
         setLoading(true);
         try {
-          const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
+          const headers = { Authorization: `Bearer ${sessionStorage.getItem('token')}` };
           if (user.role === 'CARRIER') {
             const res = await axios.get('http://localhost:5000/api/trips/my-trips', { headers });
             setHistory(res.data);
