@@ -30,7 +30,7 @@ const Analytics = ({ user }) => {
           if (m.completedAt && m.order?.createdAt) {
             const start = new Date(m.order.createdAt);
             const end = new Date(m.completedAt);
-            const diff = Math.max(0, Math.floor((end - start) / (1000 * 60)));
+            const diff = Math.max(1, Math.round((end - start) / (1000 * 60))); // Min 1 min
             totalMinutesSaved += diff;
           }
         });
@@ -39,6 +39,7 @@ const Analytics = ({ user }) => {
         // Calculate daily earnings for last 7 days
         const daily = new Array(7).fill(0);
         const now = new Date();
+        now.setHours(23, 59, 59, 999);
         
         completed.forEach(m => {
           if (!m.completedAt) return;
@@ -50,6 +51,8 @@ const Analytics = ({ user }) => {
           }
         });
 
+        const maxDaily = Math.max(...daily, 100); // Dynamic scale with min 100
+
         const reliabilityValue = res.data.length > 0 
           ? Math.round((completed.length / res.data.length) * 100) 
           : 0;
@@ -59,6 +62,7 @@ const Analytics = ({ user }) => {
           totalEarnings: user?.totalEarnings ?? earnings,
           completedDeliveries: user?.deliveryCount ?? completed.length,
           avgTimeSaved,
+          maxDaily,
           reliability: reliabilityValue,
           dailyEarnings: daily
         }));
@@ -123,7 +127,7 @@ const Analytics = ({ user }) => {
                 <div className="relative w-full flex justify-center items-end h-full">
                   <motion.div 
                     initial={{ height: 0 }}
-                    animate={{ height: `${(value / 1000) * 100}%` }}
+                    animate={{ height: value > 0 ? `${Math.max(10, (value / stats.maxDaily) * 100)}%` : '0%' }}
                     transition={{ delay: 0.5 + (i * 0.1), duration: 1, ease: 'easeOut' }}
                     className="w-full max-w-[40px] bg-brand-cyan/20 border border-brand-cyan/30 rounded-t-xl group-hover:bg-brand-cyan/40 transition-all relative"
                   >
@@ -132,7 +136,9 @@ const Analytics = ({ user }) => {
                      </div>
                   </motion.div>
                 </div>
-                <span className="text-[9px] font-mono text-muted uppercase tracking-widest">Day {i+1}</span>
+                <span className="text-[9px] font-mono text-muted uppercase tracking-widest">
+                  {i === 6 ? 'Today' : `${6-i}D ago`}
+                </span>
               </div>
             ))}
           </div>
