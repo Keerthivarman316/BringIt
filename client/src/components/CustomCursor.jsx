@@ -38,7 +38,8 @@ const CustomCursor = () => {
       if (ring) {
         ring.style.width = '18px';
         ring.style.height = '18px';
-        ring.style.borderColor = 'rgba(255, 92, 26, 0.8)';
+        ring.style.borderColor = 'var(--primary)';
+        ring.style.opacity = '0.8';
       }
     };
 
@@ -50,7 +51,8 @@ const CustomCursor = () => {
       if (ring) {
         ring.style.width = '24px';
         ring.style.height = '24px';
-        ring.style.borderColor = 'rgba(255, 92, 26, 0.3)';
+        ring.style.borderColor = 'var(--primary)';
+        ring.style.opacity = '0.3';
       }
     };
 

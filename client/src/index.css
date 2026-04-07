@@ -10,7 +10,8 @@
   --green: #10B981;
   --red: #F43F5E;
   --amber: #FBBF24;
-  --white: #FFFFFF;
+  --white: #FFFFFF; /* Literal white */
+  --foreground: #FFFFFF; /* Primary text for dark */
   --muted: rgba(255, 255, 255, 0.4);
   --border: rgba(255, 255, 255, 0.08);
 
@@ -22,18 +23,19 @@
 }
 
 [data-theme="light"] {
-  /* Studio Light Palette - Premium White & Blue */
-  --bg-deep: #F8FAFC; 
+  /* Studio Light Palette - V2 High Contrast */
+  --bg-deep: #F9FAFB; 
   --bg-card: #FFFFFF;
-  --bg-surface: #F1F5F9;
-  --primary: #2563EB; /* Royal Blue for high contrast */
-  --secondary: #7C3AED;
-  --green: #10B981;
-  --red: #EF4444;
-  --amber: #F59E0B;
-  --white: #0F172A; /* Deep Slate for text */
-  --muted: rgba(15, 23, 42, 0.5);
-  --border: rgba(15, 23, 42, 0.05);
+  --bg-surface: #F3F4F6;
+  --primary: #2563EB; /* Cobalt Blue */
+  --secondary: #4F46E5;
+  --green: #059669;
+  --red: #DC2626;
+  --amber: #D97706;
+  --white: #FFFFFF; /* Constant literal white */
+  --foreground: #111827; /* Gray-900 for dark text */
+  --muted: #4B5563; /* Gray-600 for secondary text */
+  --border: #D1D5DB; /* Gray-300 for visible borders */
 }
 
 @theme {
@@ -46,6 +48,7 @@
   --color-brand-red: var(--red);
   --color-brand-amber: var(--amber);
   --color-white: var(--white);
+  --color-foreground: var(--foreground);
   --color-muted: var(--muted);
   --color-border: var(--border);
   
@@ -105,11 +108,23 @@ h1, h2, h3, h4, .font-heading {
   border: 1px solid var(--border);
 }
 
+[data-theme="light"] .glass {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+}
+
 .glass-morphism {
   background: rgba(255, 255, 255, 0.03);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="light"] .glass-morphism {
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--border);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.05);
 }
 
 /* Animations */

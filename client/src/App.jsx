@@ -122,16 +122,16 @@ const Sidebar = ({ user, handleLogout, handleSwitchRole, isOpen, onClose }) => {
     <div className="flex flex-col gap-10 h-full">
       <div className="flex flex-col items-center gap-6">
         <Link to="/settings" onClick={() => onClose && onClose()} className="relative group cursor-pointer block">
-          <div className="w-20 h-20 rounded-full border-2 border-brand-cyan p-1 shadow-[0_0_20px_rgba(0,242,255,0.15)] group-hover:shadow-[0_0_25px_rgba(0,242,255,0.3)] transition-all">
-             <div className="w-full h-full rounded-full bg-bg-surface flex items-center justify-center overflow-hidden">
+          <div className="w-20 h-20 rounded-full border-2 border-brand-cyan p-1 shadow-premium group-hover:shadow-lg transition-all">
+             <div className="w-full h-full rounded-full bg-bg-surface flex items-center justify-center overflow-hidden border border-border">
                 <User size={40} className="text-muted group-hover:text-brand-cyan transition-colors" />
              </div>
           </div>
-          <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-brand-green border-4 border-bg-card rounded-full" />
+          <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-brand-green border-4 border-bg-card rounded-full shadow-sm" />
         </Link>
         
         <div className="text-center">
-          <h2 className="text-lg font-heading text-white tracking-tight uppercase">{user?.name}</h2>
+          <h2 className="text-lg font-heading text-foreground tracking-tight uppercase">{user?.name}</h2>
           <p className="text-brand-cyan text-[9px] font-mono tracking-[0.2em] uppercase mt-1">
             {user?.role === 'CARRIER' ? 'Delivery Partner' : 'Customer'}
           </p>
@@ -154,7 +154,7 @@ const Sidebar = ({ user, handleLogout, handleSwitchRole, isOpen, onClose }) => {
             onClick={() => handleNavClick(item.path)}
             className={cn(
               "flex items-center gap-4 p-4 rounded-xl transition-all group relative overflow-hidden",
-              location.pathname === item.path ? "bg-brand-cyan/10 text-white" : "text-muted hover:text-white hover:bg-white/[0.03]"
+              location.pathname === item.path ? "bg-brand-cyan/20 text-brand-cyan font-black" : "text-muted hover:text-foreground hover:bg-bg-surface"
             )}
           >
             <div className={cn(
@@ -204,7 +204,7 @@ const Sidebar = ({ user, handleLogout, handleSwitchRole, isOpen, onClose }) => {
       <motion.div 
         initial={{ x: -20, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
-        className="hidden md:flex w-[280px] bg-bg-card border-r border-white/5 p-8 flex-col h-full fixed left-0 top-0 z-40"
+        className="hidden md:flex w-[280px] bg-bg-card border-r border-border p-8 flex-col h-full fixed left-0 top-0 z-40 shadow-sm"
       >
         {sidebarContent}
       </motion.div>
@@ -264,11 +264,11 @@ const MainLayout = ({ children, user, handleLogout, handleSwitchRole, socketStat
   return (
     <div 
       onMouseMove={handleMouseMove}
-      className={cn("min-h-screen flex text-white bg-bg-deep relative overflow-hidden group/global", isAuthPage ? "items-center justify-center p-0" : "pl-0 md:pl-[280px] pb-24 md:pb-0")}
+      className={cn("min-h-screen flex text-foreground bg-bg-deep relative overflow-hidden group/global", isAuthPage ? "items-center justify-center p-0" : "pl-0 md:pl-[280px] pb-24 md:pb-0")}
     >
        {/* Global Background Grid (The Studio Architecture) */}
        <div className="absolute inset-0 z-0 pointer-events-none opacity-20 md:opacity-[0.14] overflow-hidden">
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
        </div>
 
        {/* Global Background Glow Animation */}
@@ -297,15 +297,15 @@ const MainLayout = ({ children, user, handleLogout, handleSwitchRole, socketStat
        
        {/* Mobile Sticky Header */}
        {!isAuthPage && user && (
-         <div className="md:hidden fixed top-0 left-0 right-0 h-20 bg-bg-deep/80 backdrop-blur-xl border-b border-white/5 z-[60] flex items-center justify-between px-6">
+         <div className="md:hidden fixed top-0 left-0 right-0 h-20 bg-bg-deep/80 backdrop-blur-xl border-b border-border z-[60] flex items-center justify-between px-6">
             <div className="flex flex-col">
               <span className="text-brand-cyan text-[8px] font-black tracking-[0.3em] uppercase">BringIt</span>
-              <span className="text-white text-[10px] font-display italic uppercase tracking-tighter">Campus Relay</span>
+              <span className="text-foreground text-[10px] font-display font-bold italic uppercase tracking-tighter">Campus Relay</span>
             </div>
             
             <button 
               onClick={() => setIsMobileMenuOpen(true)}
-              className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white active:scale-95 transition-transform"
+              className="w-12 h-12 rounded-2xl bg-bg-surface border border-border flex items-center justify-center text-white active:scale-95 transition-transform shadow-sm"
             >
               <Menu size={20} />
             </button>
@@ -316,7 +316,7 @@ const MainLayout = ({ children, user, handleLogout, handleSwitchRole, socketStat
           {!isAuthPage && user && (
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 md:mb-16 border-b border-white/5 pb-6 md:pb-8 gap-4">
                <div className="flex flex-col">
-                  <h1 className="text-2xl md:text-3xl font-display uppercase tracking-tight text-white leading-none">{title}</h1>
+                  <h1 className="text-2xl md:text-3xl font-display uppercase tracking-tight text-foreground leading-none">{title}</h1>
                   <div className="flex items-center gap-3 mt-3">
                      <div className={cn("w-1.5 h-1.5 rounded-full", socketStatus === 'CONNECTED' ? "bg-brand-green shadow-[0_0_8px_rgba(16,185,129,0.6)]" : "bg-brand-red")} />
                      <span className="text-[9px] font-mono tracking-[0.25em] text-muted uppercase">Status: {socketStatus === 'CONNECTED' ? 'Online' : 'Offline'}</span>
@@ -326,7 +326,7 @@ const MainLayout = ({ children, user, handleLogout, handleSwitchRole, socketStat
                <div className="flex items-center gap-4 self-start md:self-auto">
                   <div className="bg-bg-surface/50 border border-white/5 px-4 py-3 rounded-2xl flex flex-col items-start md:items-end gap-1">
                     <span className="text-brand-cyan text-[8px] font-bold tracking-[0.2em] uppercase">Campus Relay</span>
-                    <span className="text-white text-[10px] font-mono font-bold tracking-tighter">BringIt — IIIT Dharwad</span>
+                    <span className="text-foreground text-[10px] font-mono font-bold tracking-tighter">BringIt — IIIT Dharwad</span>
                   </div>
                </div>
             </div>
