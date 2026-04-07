@@ -44,6 +44,12 @@ export const createMatch = async (req, res) => {
         data: { status: 'MATCHED' }
       });
 
+      // 3. Auto-set carrier as Online so they are visible on maps immediately
+      await tx.user.update({
+        where: { id: req.user.id },
+        data: { isOnline: true }
+      });
+
       return m;
     });
 

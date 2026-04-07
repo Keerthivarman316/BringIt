@@ -174,7 +174,14 @@ const CarrierDashboard = ({ user, setUser }) => {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
       });
       await fetchData();
-      setModal({ isOpen: true, title: 'Order Accepted', message: 'The order has been matched to your trip.', type: 'success' });
+      setIsOnline(true);
+      setIsLocationSharing(true);
+      setModal({ 
+        isOpen: true, 
+        title: 'Mission Accepted!', 
+        message: 'The order is now matched to your trip. We have automatically turned on your ACTIVE STATUS and LIVE GPS tracking so the customer can see you coming!', 
+        type: 'success' 
+      });
     } catch (err) {
       setModal({ isOpen: true, title: 'Accept Error', message: err.response?.data?.message || 'Could not accept this order.', type: 'error' });
     }
