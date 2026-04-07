@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation, Navigate } from 'react-router-dom'
 import { io } from 'socket.io-client'
 import { motion, useMotionValue, useMotionTemplate } from 'framer-motion'
-import { LayoutDashboard, Map, User, Settings as SettingsIcon, LogOut, Activity } from 'lucide-react'
+import { LayoutDashboard, Map, User, Settings as SettingsIcon, LogOut, Activity, RefreshCw } from 'lucide-react'
 import axios from 'axios'
 import Login from './components/Login'
 import Register from './components/Register'
@@ -13,6 +13,7 @@ import Settings from './components/Settings'
 import CustomCursor from './components/CustomCursor'
 import Landing from './components/Landing'
 import LiveMap from './components/LiveMap'
+import StudioModal from './components/StudioModal'
 
 // --- LIVE TRACKING PAGE WRAPPER ---
 const LiveTrackingPage = () => {
@@ -86,7 +87,7 @@ const ProtectedRoute = ({ user, children, requiredRole }) => {
   return children;
 };
 
-const Sidebar = ({ user, handleLogout }) => {
+const Sidebar = ({ user, handleLogout, handleSwitchRole }) => {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -169,8 +170,18 @@ const Sidebar = ({ user, handleLogout }) => {
           ))}
           
           <button 
+            onClick={handleSwitchRole} 
+            className="flex items-center gap-4 p-4 rounded-xl hover:bg-brand-cyan/10 transition-all group mt-8 border border-brand-cyan/20 bg-brand-cyan/5"
+          >
+            <RefreshCw size={18} className="text-brand-cyan opacity-80 group-hover:opacity-100 group-hover:rotate-180 transition-transform duration-500" />
+            <span className="text-[11px] font-bold text-brand-cyan opacity-80 group-hover:opacity-100 uppercase tracking-widest">
+              Switch to {user?.role === 'CARRIER' ? 'Customer' : 'Delivery'}
+            </span>
+          </button>
+          
+          <button 
             onClick={handleLogout} 
-            className="flex items-center gap-4 p-4 rounded-xl hover:bg-brand-red/10 transition-all group mt-8"
+            className="flex items-center gap-4 p-4 rounded-xl hover:bg-brand-red/10 transition-all group mt-2"
           >
             <LogOut size={18} className="text-brand-red opacity-50 group-hover:opacity-100" />
             <span className="text-[11px] font-bold text-brand-red opacity-50 group-hover:opacity-100 uppercase tracking-widest">Logout</span>
@@ -200,7 +211,7 @@ const Sidebar = ({ user, handleLogout }) => {
   );
 };
 
-const MainLayout = ({ children, user, handleLogout, socketStatus }) => {
+const MainLayout = ({ children, user, handleLogout, handleSwitchRole, socketStatus }) => {
   const location = useLocation();
   const isAuthPage = ['/login', '/register', '/'].includes(location.pathname);
   const title = location.pathname === '/settings' ? 'Settings' : 
@@ -238,7 +249,7 @@ const MainLayout = ({ children, user, handleLogout, socketStatus }) => {
         }}
       />
 
-       {!isAuthPage && user && <Sidebar user={user} handleLogout={handleLogout} />}
+       {!isAuthPage && user && <Sidebar user={user} handleLogout={handleLogout} handleSwitchRole={handleSwitchRole} />}
        
        <main className={cn("flex-1 relative z-10", isAuthPage ? "flex items-center justify-center p-4 max-w-full" : "p-4 md:p-12")}>
           {!isAuthPage && user && (
@@ -275,6 +286,7 @@ const AppRoutes = () => {
   const [socketStatus, setSocketStatus] = useState('OFFLINE');
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -330,10 +342,38 @@ const AppRoutes = () => {
     window.location.href = '/';
   };
 
+  const handleSwitchRole = async () => {
+    try {
+      const res = await axios.put('http://localhost:5000/api/auth/switch-role', {}, {
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
+      });
+      setUser(res.data.user);
+      sessionStorage.setItem('user', JSON.stringify(res.data.user));
+      sessionStorage.setItem('token', res.data.token);
+      localStorage.setItem('token', res.data.token); // Keep in sync
+      localStorage.setItem('user', JSON.stringify(res.data.user));
+      navigate(res.data.user.role === 'CARRIER' ? '/dashboard/carrier' : '/dashboard/requester');
+    } catch (err) {
+      setModal({
+        isOpen: true,
+        title: 'Action Required',
+        message: err.response?.data?.message || 'Failed to switch role',
+        type: 'warning'
+      });
+    }
+  };
+
   if (isLoading) return null;
 
   return (
-    <MainLayout user={user} handleLogout={handleLogout} socketStatus={socketStatus}>
+    <MainLayout user={user} handleLogout={handleLogout} handleSwitchRole={handleSwitchRole} socketStatus={socketStatus}>
+      <StudioModal 
+        isOpen={modal.isOpen}
+        onClose={() => setModal({ ...modal, isOpen: false })}
+        title={modal.title}
+        message={modal.message}
+        type={modal.type}
+      />
       <Routes>
         <Route path="/" element={<Landing user={user} />} />
         <Route path="/login" element={<Login setUser={setUser} />} />

@@ -161,3 +161,57 @@ export const updateStatus = async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 };
+
+export const switchRole = async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const currentRole = user.role;
+    const newRole = currentRole === 'CARRIER' ? 'REQUESTER' : 'CARRIER';
+
+    // Option A Requirement: Block switch if Carrier has an active trip
+    if (currentRole === 'CARRIER') {
+      const activeTrip = await prisma.trip.findFirst({
+        where: {
+          carrierId: user.id,
+          status: { in: ['OPEN', 'IN_PROGRESS'] }
+        }
+      });
+
+      if (activeTrip) {
+        return res.status(400).json({ 
+          message: 'You have an active trip. Please complete or cancel it before switching to Customer mode.' 
+        });
+      }
+    }
+
+    // Update role, and logically take offline if they were an active carrier
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: { 
+        role: newRole,
+        isOnline: false // Reset online status safely
+      }
+    });
+
+    // Generate new JWT token
+    const token = jwt.sign(
+      { id: updatedUser.id, role: updatedUser.role, email: updatedUser.email, collegeName: updatedUser.collegeName, phone: updatedUser.phone },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    const { passwordHash: _, ...userData } = updatedUser;
+    
+    res.json({ message: 'Mode switched successfully', user: userData, token });
+  } catch (error) {
+    console.error('Switch Role Error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};

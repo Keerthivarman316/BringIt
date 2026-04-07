@@ -152,7 +152,7 @@ const Register = ({ setUser }) => {
                   onClick={() => name && email && password && collegeName && phone && setStep(2)}
                   className="w-full bg-white text-bg-deep font-black py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-brand-cyan hover:shadow-lg hover:shadow-brand-cyan/20 transition-all shadow-xl group"
                 >
-                  NEXT: CHOOSE ROLE <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                  NEXT: STARTING MODE <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
                 </button>
               </motion.div>
             ) : (
@@ -164,8 +164,8 @@ const Register = ({ setUser }) => {
                 className="space-y-8"
               >
                 <div className="space-y-2">
-                  <h2 className="text-4xl font-display text-white uppercase tracking-tight italic">Choose Your Role</h2>
-                  <p className="text-muted text-sm font-body">How would you like to use BringIt?</p>
+                  <h2 className="text-4xl font-display text-white uppercase tracking-tight italic">Choose Starting Mode</h2>
+                  <p className="text-muted text-sm font-body">Don't worry, you can switch modes at any time.</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
