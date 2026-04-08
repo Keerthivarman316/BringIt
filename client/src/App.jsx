@@ -232,7 +232,7 @@ const MainLayout = ({ children, user, handleLogout, handleSwitchRole, socketStat
     >
        {/* Global Background Grid (The Studio Architecture) */}
        <div className="absolute inset-0 z-0 pointer-events-none opacity-20 md:opacity-[0.14] overflow-hidden">
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[size:40px_40px]" />
        </div>
 
        {/* Global Background Glow Animation */}
