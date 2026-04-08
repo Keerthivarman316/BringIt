@@ -23,12 +23,20 @@ const CarrierDashboard = ({ user, setUser }) => {
   const [showOfflineConfirm, setShowOfflineConfirm] = useState(false);
   const socketRef = useRef(null);
   const currentTripRef = useRef(null);
+  const lastRestUpdateRef = useRef(0);
 
   const currentTrip = myTrips.find(t => t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
 
   useEffect(() => {
     currentTripRef.current = currentTrip;
-  }, [currentTrip]);
+    
+    // Automated GPS activation
+    if (isOnline && currentTrip && (currentTrip.status === 'OPEN' || currentTrip.status === 'IN_PROGRESS')) {
+      if (!isLocationSharing) setIsLocationSharing(true);
+    } else {
+      if (isLocationSharing) setIsLocationSharing(false);
+    }
+  }, [currentTrip, isOnline, isLocationSharing]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -64,13 +72,31 @@ const CarrierDashboard = ({ user, setUser }) => {
     };
   }, [fetchData]);
 
-  const handleGPSUpdate = useCallback((location) => {
+  const handleGPSUpdate = useCallback(async (location) => {
     if (currentTripRef.current && isLocationSharing && socketRef.current) {
+      // 1. WebSocket Update (Real-time)
       socketRef.current.emit('update_location', {
         tripId: currentTripRef.current.id,
         lat: location.lat,
         lng: location.lng
       });
+
+      // 2. Throttled REST Update (Fallback / Sync - Every 30 seconds)
+      const now = Date.now();
+      if (now - lastRestUpdateRef.current > 30000) {
+        try {
+          lastRestUpdateRef.current = now;
+          await axios.patch(`http://localhost:5000/api/trips/${currentTripRef.current.id}/location`, {
+            lat: location.lat,
+            lng: location.lng
+          }, {
+            headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
+          });
+          console.log('[GPS] REST sync successful');
+        } catch (err) {
+          console.error('[GPS] REST sync failed:', err);
+        }
+      }
     }
   }, [isLocationSharing]);
 
@@ -267,15 +293,26 @@ const CarrierDashboard = ({ user, setUser }) => {
 
         {[
           { label: 'Capacity', value: `${capacity} items`, color: 'text-white', icon: <Activity size={14} /> },
-          { label: 'GPS', value: isLocationSharing ? 'Live' : 'Off', color: isLocationSharing ? 'text-brand-cyan' : 'text-muted', icon: <Smartphone size={14} /> },
+          { 
+            label: 'GPS Status', 
+            value: isLocationSharing ? 'AUTO-TRACKING' : 'STANDBY', 
+            color: isLocationSharing ? 'text-brand-cyan' : 'text-muted', 
+            icon: <Smartphone size={14} className={cn(isLocationSharing && "animate-pulse text-brand-cyan")} /> 
+          },
           { label: 'Orders', value: `${pendingOrders.length} Available`, color: 'text-white', icon: <Package size={14} /> },
         ].map((stat, i) => (
-          <div key={i} className="glass p-6 rounded-3xl border border-white/5 flex flex-col items-center gap-2 group hover:border-white/10 transition-colors">
+          <div key={i} className={cn(
+            "glass p-6 rounded-3xl border flex flex-col items-center gap-2 group transition-all",
+            stat.label === 'GPS Status' && isLocationSharing ? "border-brand-cyan/20 bg-brand-cyan/5" : "border-white/5 hover:border-white/10"
+          )}>
             <div className="flex items-center justify-between w-full">
               <span className="text-[10px] font-mono text-muted tracking-widest uppercase">{stat.label}</span>
               <div className="text-muted group-hover:text-brand-cyan transition-colors">{stat.icon}</div>
             </div>
             <div className={cn("text-xl font-display uppercase italic", stat.color)}>{stat.value}</div>
+            {stat.label === 'GPS Status' && isLocationSharing && (
+              <div className="text-[8px] font-mono text-brand-cyan/60 uppercase tracking-widest mt-1">Live Sync Active</div>
+            )}
           </div>
         ))}
       </div>
@@ -677,16 +714,12 @@ const CarrierDashboard = ({ user, setUser }) => {
         <div className="lg:col-span-4 space-y-8">
            <div className="glass p-8 rounded-[40px] border border-white/5 space-y-6">
              <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                <h3 className="text-sm font-mono font-bold tracking-widest text-white uppercase">Live Map</h3>
-                {currentTrip && (
-                  <button 
-                    onClick={() => setIsLocationSharing(!isLocationSharing)}
-                    className={`px-3 py-1 rounded-lg text-[8px] font-mono font-bold tracking-widest uppercase transition-all ${
-                      isLocationSharing ? 'bg-brand-red/20 text-brand-red border border-brand-red/30' : 'bg-brand-green/20 text-brand-green border border-brand-green/30'
-                    }`}
-                  >
-                    {isLocationSharing ? 'Stop Sharing' : 'Go Live'}
-                  </button>
+                <h3 className="text-sm font-mono font-bold tracking-widest text-white uppercase">Live Tracking</h3>
+                {isLocationSharing && (
+                  <div className="flex items-center gap-2 bg-brand-green/10 px-3 py-1 rounded-full border border-brand-green/20">
+                    <div className="w-1.5 h-1.5 bg-brand-green rounded-full animate-ping" />
+                    <span className="text-[8px] font-mono font-bold text-brand-green uppercase tracking-widest">Live</span>
+                  </div>
                 )}
              </div>
              

@@ -223,3 +223,38 @@ export const getTripById = async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 };
+
+export const updateTripLocation = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { lat, lng } = req.body;
+
+    if (lat === undefined || lng === undefined) {
+      return res.status(400).json({ message: 'Latitude and Longitude are required' });
+    }
+
+    const trip = await prisma.trip.findUnique({ where: { id } });
+
+    if (!trip) {
+      return res.status(404).json({ message: 'Trip not found' });
+    }
+
+    if (trip.carrierId !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized to update this trip location' });
+    }
+
+    const updatedTrip = await prisma.trip.update({
+      where: { id },
+      data: {
+        currentLat: Number(lat),
+        currentLng: Number(lng),
+        lastLocationAt: new Date()
+      }
+    });
+
+    res.json(updatedTrip);
+  } catch (error) {
+    console.error('Error updating trip location:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
