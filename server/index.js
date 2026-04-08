@@ -11,6 +11,7 @@ import matchRoutes from './src/routes/match.routes.js';
 import deliveryRoutes from './src/routes/delivery.routes.js';
 import reviewRoutes from './src/routes/review.routes.js';
 import groupRoutes from './src/routes/group.routes.js';
+import paymentRoutes from './src/routes/payment.routes.js';
 import { prisma } from './src/lib/prisma.js';
 
 const app = express();
@@ -37,6 +38,7 @@ app.use('/api/matches', matchRoutes);
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/groups', groupRoutes);
+app.use('/api/payments', paymentRoutes);
 
 app.get("/", (req, res) => {
     res.send("BringIt API running 🚀");

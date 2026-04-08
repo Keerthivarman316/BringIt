@@ -112,11 +112,32 @@ export const updateOrder = async (req, res) => {
 
 export const getPendingOrders = async (req, res) => {
   try {
+    const carrier = req.user;
+    
+    // Construct the query based on payment preferences
+    const whereConditions = {
+      status: 'PENDING',
+      collegeName: carrier.collegeName || 'IIIT Dharwad',
+      OR: [
+        // Condition 1: Prepaid orders (Must be already PAID)
+        {
+          paymentMethod: { not: 'COD' },
+          paymentStatus: 'PAID'
+        },
+        // Condition 2: COD orders (Must match carrier's wallet capacity)
+        {
+          paymentStatus: 'PENDING',
+          paymentMethod: 'COD',
+          // Only show if carrier hasn't opted out of COD
+          ...(carrier.prefersPrepaidOnly ? { id: 'disabled' } : {
+            budget: { lte: carrier.maxCodLimit }
+          })
+        }
+      ]
+    };
+
     const orders = await prisma.order.findMany({
-      where: { 
-        status: 'PENDING',
-        collegeName: req.user.collegeName || 'IIIT Dharwad'
-      },
+      where: whereConditions,
       orderBy: { createdAt: 'desc' },
       include: {
         items: true,
@@ -124,6 +145,7 @@ export const getPendingOrders = async (req, res) => {
         requester: { select: { name: true, trustScore: true } }
       }
     });
+
     res.json(orders);
   } catch (error) {
     console.error('Error fetching pending orders:', error);

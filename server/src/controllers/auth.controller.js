@@ -215,3 +215,25 @@ export const switchRole = async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 };
+
+export const updateProfile = async (req, res) => {
+  try {
+    const { name, phone, prefersPrepaidOnly, maxCodLimit } = req.body;
+    
+    const updatedUser = await prisma.user.update({
+      where: { id: req.user.id },
+      data: {
+        ...(name && { name }),
+        ...(phone && { phone }),
+        ...(prefersPrepaidOnly !== undefined && { prefersPrepaidOnly: !!prefersPrepaidOnly }),
+        ...(maxCodLimit !== undefined && { maxCodLimit: Number(maxCodLimit) }),
+      }
+    });
+
+    const { passwordHash: _, ...userData } = updatedUser;
+    res.json({ message: 'Profile updated successfully', user: userData });
+  } catch (error) {
+    console.error('Update Profile Error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};

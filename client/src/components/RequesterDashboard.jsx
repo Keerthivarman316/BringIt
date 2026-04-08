@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Package, MapPin, Clock, Zap, Search, ChevronRight, Navigation, LayoutDashboard, Settings as SettingsIcon, Map, Activity, ShoppingBag, Phone, Trash2, X, AlertCircle, MessageCircle, CheckCircle, CreditCard } from 'lucide-react';
+import { Package, MapPin, Clock, Zap, Search, ChevronRight, Navigation, LayoutDashboard, Settings as SettingsIcon, Map, Activity, ShoppingBag, Phone, Trash2, X, AlertCircle, MessageCircle, CheckCircle, CreditCard, Edit } from 'lucide-react';
 import LiveMap from './LiveMap';
 import StudioModal from './StudioModal';
 
@@ -22,6 +22,8 @@ const RequesterDashboard = ({ user, setUser }) => {
   const [itemName, setItemName] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [budget, setBudget] = useState(0);
+  const [paymentMethod, setPaymentMethod] = useState('COD');
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   const [availableTrips, setAvailableTrips] = useState([]);
   const [storeName, setStoreName] = useState('');
@@ -99,38 +101,173 @@ const RequesterDashboard = ({ user, setUser }) => {
   const removeBillItem = (id) => {
     setBillItems(billItems.filter(item => item.id !== id));
   };
+
+  const editBillItem = (item) => {
+    setCurrentItemName(item.name);
+    setCurrentItemQty(item.qty);
+    setCurrentItemPrice(item.price);
+    setBillItems(billItems.filter(i => i.id !== item.id));
+  };
+
+  const loadRazorpay = () => {
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
   const handlePlaceOrder = async (e) => {
     if (e) e.preventDefault();
+    setIsProcessingPayment(true);
+    let draftOrderId = null;
+    console.log("DEBUG: Razorpay Key Loaded:", import.meta.env.VITE_RAZORPAY_KEY_ID ? "YES" : "NO");
+    
     try {
+      // Safety Check: Ensure keys are loaded (NPM restart often required)
+      if (paymentMethod !== 'COD' && !import.meta.env.VITE_RAZORPAY_KEY_ID) {
+         setModal({ 
+           isOpen: true, 
+           title: 'Keys Not Found', 
+           message: 'The Razorpay Key was not detected. Please stop your "npm run dev" terminal (Ctrl+C) and restart it to load the new settings.', 
+           type: 'error' 
+         });
+         setIsProcessingPayment(false);
+         return;
+      }
+
       const totalQty = billItems.reduce((acc, item) => acc + Number(item.qty), 0);
       const totalBudget = billItems.reduce((acc, item) => acc + (Number(item.qty) * Number(item.price)), 0);
-      
-      // Cleaner title for multi-item orders
+      const grandTotal = totalBudget + Number(deliveryFee);
+
       const combinedName = billItems.length > 1 
         ? `${billItems[0].name} + ${billItems.length - 1} more` 
         : billItems[0].name;
 
-      await axios.post('http://localhost:5000/api/orders', {
+      // 1. Create the Order on our server first
+      const orderRes = await axios.post('http://localhost:5000/api/orders', {
         itemName: combinedName,
         storeName,
         quantity: totalQty,
         deliveryFee: Number(deliveryFee),
         budget: Number(totalBudget),
         urgency,
-        items: billItems // NEW: send original item list
+        paymentMethod,
+        items: billItems
       }, {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
       });
-      setIsFormVisible(false);
-      setBillItems([]);
-      setCurrentItemName('');
-      setStoreName('');
-      setDeliveryFee(25);
-      setStep(1);
-      fetchOrders();
+
+      const order = orderRes.data;
+      draftOrderId = order.id;
+
+      // 2. If Prepaid, handle Razorpay
+      if (paymentMethod !== 'COD') {
+        const res = await loadRazorpay();
+        if (!res) {
+          setModal({ isOpen: true, title: 'Connection Error', message: 'Razorpay SDK failed to load. Check your internet connection.', type: 'error' });
+          setIsProcessingPayment(false);
+          return;
+        }
+
+        // Create Razorpay Order
+        const rzpOrderRes = await axios.post('http://localhost:5000/api/payments/create-order', {
+          amount: grandTotal,
+          orderId: order.id
+        }, {
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
+        });
+
+        const rzpOrder = rzpOrderRes.data;
+
+        const options = {
+          key: import.meta.env.VITE_RAZORPAY_KEY_ID, 
+          amount: rzpOrder.amount,
+          currency: rzpOrder.currency,
+          name: 'BringIt',
+          description: `Payment for Order #${order.id.slice(-6)}`,
+          order_id: rzpOrder.id,
+          handler: async (response) => {
+            try {
+              await axios.post('http://localhost:5000/api/payments/verify', {
+                orderId: order.id,
+                ...response
+              }, {
+                headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
+              });
+              setModal({ isOpen: true, title: 'Payment Successful', message: 'Your order is now live and waiting for a carrier.', type: 'success' });
+              finalizeOrderSuccess();
+            } catch (err) {
+              setModal({ isOpen: true, title: 'Payment Verification Failed', message: 'Please contact support if funds were deducted.', type: 'error' });
+              setIsProcessingPayment(false);
+            }
+          },
+          prefill: {
+            name: user.name,
+            email: user.email,
+            contact: user.phone || '9999999999',
+            method: 'upi'
+          },
+          theme: { color: '#00F2FF' },
+          modal: {
+            ondismiss: async () => {
+              setIsProcessingPayment(false);
+              // Clean up the draft order since payment was not completed
+              try {
+                await axios.delete(`http://localhost:5000/api/orders/${order.id}`, {
+                  headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
+                });
+                fetchOrders(); // Refresh list to remove the draft
+              } catch (err) {
+                console.error("Cleanup failed:", err);
+              }
+            }
+          }
+        };
+
+        const paymentObject = new window.Razorpay(options);
+        paymentObject.open();
+      } else {
+        // COD - Success immediately
+        setModal({ isOpen: true, title: 'Order Placed', message: 'Pay the carrier at your doorstep once delivered.', type: 'success' });
+        finalizeOrderSuccess();
+      }
     } catch (err) {
-      alert('Failed to place order.');
+      console.error("[PAYMENT_ERROR]", err);
+      
+      // Cleanup draft order if it exists but payment wasn't finalized
+      if (draftOrderId) {
+        try {
+          await axios.delete(`http://localhost:5000/api/orders/${draftOrderId}`, {
+            headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
+          });
+          fetchOrders();
+        } catch (cleanupErr) {
+          console.error("Cleanup failed:", cleanupErr);
+        }
+      }
+
+      setModal({ 
+        isOpen: true, 
+        title: 'Order Failed', 
+        message: err.response?.data?.message || 'There was a problem placing your order. Any pending transaction will be reversed.', 
+        type: 'error' 
+      });
+      setIsProcessingPayment(false);
     }
+  };
+
+  const finalizeOrderSuccess = () => {
+    setIsFormVisible(false);
+    setBillItems([]);
+    setCurrentItemName('');
+    setStoreName('');
+    setDeliveryFee(25);
+    setStep(1);
+    setIsProcessingPayment(false);
+    fetchOrders();
   };
 
   const handleCancelOrder = (orderId) => {
@@ -561,8 +698,16 @@ const RequesterDashboard = ({ user, setUser }) => {
 
                           {/* Digital Bill */}
                           <div className="bg-bg-surface/30 border border-white/5 rounded-[32px] overflow-hidden">
-                             <div className="p-6 border-b border-white/5 bg-white/[0.02]">
+                             <div className="p-6 border-b border-white/5 bg-white/[0.02] flex justify-between items-center">
                                 <h4 className="text-[10px] font-mono text-brand-cyan font-bold tracking-widest uppercase">Digital Bill</h4>
+                                {billItems.length > 0 && (
+                                  <button 
+                                    onClick={() => setBillItems([])}
+                                    className="text-[9px] font-mono text-brand-red/60 hover:text-brand-red uppercase tracking-widest transition-colors"
+                                  >
+                                    Clear All
+                                  </button>
+                                )}
                              </div>
                              
                              <div className="max-h-[300px] overflow-y-auto p-4 space-y-2">
@@ -576,7 +721,7 @@ const RequesterDashboard = ({ user, setUser }) => {
                                      <div className="text-sm font-display text-white">₹{item.qty * item.price}</div>
                                      <button 
                                        onClick={() => removeBillItem(item.id)}
-                                       className="w-8 h-8 rounded-lg flex items-center justify-center text-muted hover:text-brand-red hover:bg-brand-red/10 transition-all opacity-0 group-hover/item:opacity-100"
+                                       className="w-8 h-8 rounded-lg flex items-center justify-center text-muted hover:text-brand-red hover:bg-brand-red/10 transition-all opacity-60 hover:opacity-100"
                                      >
                                         <Trash2 size={14} />
                                      </button>
@@ -724,6 +869,33 @@ const RequesterDashboard = ({ user, setUser }) => {
                                    <div className="text-4xl font-display text-white italic tracking-tighter">₹{billItems.reduce((acc, item) => acc + (item.qty * item.price), 0) + Number(deliveryFee)}</div>
                                 </div>
                              </div>
+
+                             <div className="space-y-4">
+                                <label className="text-[10px] font-mono text-muted uppercase tracking-widest ml-4">Payment Method</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                  {[
+                                    { id: 'COD', label: 'Cash on Delivery', sub: 'Pay at Doorstep', icon: <ShoppingBag size={14} /> },
+                                    { id: 'UPI', label: 'Razorpay UPI', sub: 'Instant & Secure', icon: <CreditCard size={14} /> }
+                                  ].map(method => (
+                                    <button
+                                      key={method.id}
+                                      type="button"
+                                      onClick={() => setPaymentMethod(method.id)}
+                                      className={cn(
+                                        "flex flex-col gap-1 p-4 rounded-2xl border text-left transition-all",
+                                        paymentMethod === method.id ? "bg-brand-cyan/10 border-brand-cyan/40 scale-[1.02]" : "bg-white/5 border-white/5 opacity-60 hover:opacity-100"
+                                      )}
+                                    >
+                                      <div className="flex justify-between items-center">
+                                        <div className={cn(paymentMethod === method.id ? "text-brand-cyan" : "text-muted")}>{method.icon}</div>
+                                        {paymentMethod === method.id && <div className="w-1.5 h-1.5 rounded-full bg-brand-cyan shadow-[0_0_8px_rgba(0,242,255,1)]" />}
+                                      </div>
+                                      <span className="text-[10px] font-bold text-white uppercase mt-2">{method.label}</span>
+                                      <span className="text-[8px] font-mono text-muted uppercase tracking-tighter">{method.sub}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                             </div>
                           </div>
 
                           <div className="flex gap-4">
@@ -736,12 +908,20 @@ const RequesterDashboard = ({ user, setUser }) => {
                              >
                                 {urgency === 'URGENT' ? 'URGENT ⚡' : 'Mark Urgent?'}
                              </button>
-                             <button 
-                               onClick={handlePlaceOrder}
-                               className="flex-[2] bg-white text-bg-deep font-black py-5 rounded-3xl hover:bg-brand-cyan hover:shadow-[0_0_30px_rgba(0,242,255,0.2)] transition-all uppercase tracking-widest"
-                             >
-                                CONFIRM & POST 🚀
-                             </button>
+                               <button 
+                                 disabled={isProcessingPayment}
+                                 onClick={handlePlaceOrder}
+                                 className="flex-[2] bg-white text-bg-deep font-black py-5 rounded-3xl hover:bg-brand-cyan hover:shadow-[0_0_30px_rgba(0,242,255,0.2)] transition-all uppercase tracking-widest flex items-center justify-center gap-2"
+                               >
+                                  {isProcessingPayment ? (
+                                    <>
+                                      <div className="w-4 h-4 border-2 border-bg-deep/20 border-t-bg-deep rounded-full animate-spin" />
+                                      PROCESSING...
+                                    </>
+                                  ) : (
+                                    <>CONFIRM & POST 🚀</>
+                                  )}
+                               </button>
                           </div>
                        </motion.div>
                     )}

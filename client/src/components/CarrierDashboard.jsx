@@ -371,8 +371,14 @@ const CarrierDashboard = ({ user, setUser }) => {
                               <div className="flex items-center gap-2 text-[10px] font-mono text-muted uppercase">
                                 <MapPin size={10} className="text-brand-cyan" /> {item.storeName}
                               </div>
-                              <div className="flex items-center gap-2 text-[10px] font-mono text-brand-green font-bold uppercase">
+                              <div className="flex items-center gap-2 text-[10px] font-mono text-brand-green font-bold uppercase border-l border-white/10 pl-4">
                                 <Zap size={10} /> Earn: ₹{item.deliveryFee}
+                              </div>
+                              <div className={cn(
+                                "flex items-center gap-2 text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded border ml-2",
+                                item.paymentMethod === 'COD' ? "text-brand-amber bg-brand-amber/10 border-brand-amber/20" : "text-brand-cyan bg-brand-cyan/10 border-brand-cyan/20"
+                              )}>
+                                {item.paymentMethod === 'COD' ? 'CASH' : 'PREPAID'}
                               </div>
                             </div>
                             
@@ -527,6 +533,12 @@ const CarrierDashboard = ({ user, setUser }) => {
                             </div>
                             <div className="flex items-center gap-2 text-[10px] font-mono uppercase font-bold text-brand-green border-l border-white/10 pl-4">
                               <Zap size={10} /> Fee: ₹{match.order?.deliveryFee}
+                            </div>
+                            <div className={cn(
+                                "flex items-center gap-2 text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded border ml-2",
+                                match.order?.paymentMethod === 'COD' ? "text-brand-amber bg-brand-amber/10 border-brand-amber/20" : "text-brand-cyan bg-brand-cyan/10 border-brand-cyan/20"
+                            )}>
+                              {match.order?.paymentMethod === 'COD' ? 'CASH' : 'PREPAID'}
                             </div>
                             {match.order?.requester?.phone && (
                                <a 

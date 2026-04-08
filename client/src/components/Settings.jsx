@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { User, Bell, Shield, Smartphone, ArrowLeft, Clock, Package } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import StudioModal from './StudioModal';
 
 const ToggleSwitch = ({ enabled, onToggle }) => (
   <button 
@@ -27,11 +28,18 @@ const Settings = () => {
     'Two-Factor Auth': false,
     'Auto-accept Orders': false,
     'Email Alerts': true,
+    'Prepaid Only': user.prefersPrepaidOnly || false,
   });
 
-  const handleToggle = (key) => {
+  const [paymentPrefs, setPaymentPrefs] = useState({
+    limit: user.maxCodLimit || 500,
+  });
+  const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+
+  const handleToggle = async (key) => {
+    const newVal = !toggles[key];
     setToggles(prev => {
-      const newState = { ...prev, [key]: !prev[key] };
+      const newState = { ...prev, [key]: newVal };
       if (key === 'Dark Mode') {
         const newTheme = newState[key] ? 'dark' : 'light';
         localStorage.setItem('theme', newTheme);
@@ -39,6 +47,37 @@ const Settings = () => {
       }
       return newState;
     });
+
+    if (key === 'Prepaid Only') {
+      try {
+        const res = await axios.patch('http://localhost:5000/api/auth/profile', 
+          { prefersPrepaidOnly: newVal },
+          { headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` } }
+        );
+        sessionStorage.setItem('user', JSON.stringify(res.data.user));
+      } catch (err) {
+        console.error('Failed to update preference:', err);
+      }
+    }
+  };
+
+  const handleUpdateLimit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await axios.patch('http://localhost:5000/api/auth/profile', 
+        { maxCodLimit: Number(paymentPrefs.limit) },
+        { headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` } }
+      );
+      sessionStorage.setItem('user', JSON.stringify(res.data.user));
+      setModal({ 
+        isOpen: true, 
+        title: 'Settings Updated', 
+        message: `Your financial limit has been updated to ₹${paymentPrefs.limit}.`, 
+        type: 'success' 
+      });
+    } catch (err) {
+      console.error('Failed to update limit:', err);
+    }
   };
 
   const [activeTab, setActiveTab] = useState('profile');
@@ -95,8 +134,16 @@ const Settings = () => {
       id: 'security',
       title: 'Security',
       icon: <Shield size={20} />,
-      options: ['Two-Factor Auth', 'Auto-accept Orders', 'Email Alerts']
-    }
+      options: ['Two-Factor Auth', 'Email Alerts', ...(user.role === 'CARRIER' ? ['Auto-accept Orders'] : [])]
+    },
+    ...(user.role === 'CARRIER' ? [
+      {
+        id: 'payments',
+        title: 'Payment Prefs',
+        icon: <Package size={20} />,
+        isPaymentPrefs: true
+      }
+    ] : [])
   ];
 
   const activeSection = sections.find(s => s.id === activeTab);
@@ -173,6 +220,47 @@ const Settings = () => {
                     ))
                   )}
                 </div>
+              ) : activeSection.isPaymentPrefs ? (
+                <div className="space-y-8">
+                  <div className="flex items-center justify-between p-4 bg-bg-deep/50 border border-white/5 rounded-2xl">
+                    <div className="space-y-1">
+                      <span className="text-sm font-bold text-white block">Prepaid Only Mode</span>
+                      <span className="text-[10px] font-mono text-muted uppercase tracking-widest">Only show orders already paid via UPI/Card</span>
+                    </div>
+                    <ToggleSwitch 
+                      enabled={toggles['Prepaid Only']} 
+                      onToggle={() => handleToggle('Prepaid Only')} 
+                    />
+                  </div>
+
+                  {!toggles['Prepaid Only'] && (
+                    <form onSubmit={handleUpdateLimit} className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-mono text-muted uppercase tracking-widest">Max cash upfront (COD Limit)</label>
+                        <div className="relative group">
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-cyan font-bold italic">₹</span>
+                          <input 
+                            type="number"
+                            value={paymentPrefs.limit}
+                            onChange={(e) => setPaymentPrefs({ ...paymentPrefs, limit: e.target.value })}
+                            className="w-full bg-bg-deep/50 border border-white/5 rounded-2xl p-4 pl-8 text-white font-display text-xl focus:border-brand-cyan/50 focus:outline-none transition-all"
+                            placeholder="500"
+                          />
+                        </div>
+                        <p className="text-[9px] font-body text-muted leading-relaxed">
+                          This ensures you only see COD orders where the item budget is within your spending capacity. 
+                          Prepaid orders will always be visible.
+                        </p>
+                      </div>
+                      <button 
+                        type="submit"
+                        className="w-full bg-brand-cyan/10 hover:bg-brand-cyan/20 border border-brand-cyan/30 py-4 rounded-2xl text-brand-cyan font-display text-xs uppercase tracking-widest transition-all"
+                      >
+                        Update Financial Limit
+                      </button>
+                    </form>
+                  )}
+                </div>
               ) : (
                 <div className="space-y-2">
                   {activeSection.options.map(opt => (
@@ -190,6 +278,13 @@ const Settings = () => {
           </AnimatePresence>
         </div>
       </div>
+      <StudioModal 
+        isOpen={modal.isOpen}
+        onClose={() => setModal({ ...modal, isOpen: false })}
+        title={modal.title}
+        message={modal.message}
+        type={modal.type}
+      />
     </div>
   );
 };

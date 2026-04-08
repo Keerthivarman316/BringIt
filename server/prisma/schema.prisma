@@ -65,6 +65,14 @@ enum PaymentMethod {
   COD
   UPI
   DEBIT_CARD
+  NETBANKING
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
 }
 
 enum NotificationType {
@@ -101,6 +109,10 @@ model User {
   trustScore    Float @default(1.0) // weighted by rater's own trust score
   deliveryCount Int   @default(0) // increments on each successful delivery
   totalEarnings Float @default(0.0) // carrier's accumulated earnings from delivery fees
+  
+  // Carrier Payment Preferences
+  prefersPrepaidOnly Boolean @default(false)
+  maxCodLimit        Int     @default(500) // maximum cash upfront carrier can handle
 
   isOnline          Boolean          @default(false)
   profilePicUrl String?
@@ -183,6 +195,12 @@ model Order {
 
   status        OrderStatus   @default(PENDING)
   paymentMethod PaymentMethod @default(COD)
+  paymentStatus PaymentStatus @default(PENDING)
+
+  // Razorpay integration
+  razorpayOrderId   String?
+  razorpayPaymentId String?
+  razorpaySignature String?
 
   // Drop zone delivery
   dropZoneId       String?
