@@ -105,8 +105,8 @@ const Settings = () => {
     <div className="max-w-4xl mx-auto space-y-12 pb-24">
       <div className="flex items-center justify-between">
         <div className="space-y-1">
-          <h1 className="text-4xl font-display uppercase tracking-tight text-foreground">Settings</h1>
-          <p className="text-muted text-sm font-body font-medium">Manage your account and preferences.</p>
+          <h1 className="text-4xl font-display uppercase tracking-tight text-white">Settings</h1>
+          <p className="text-muted text-sm font-body">Manage your account and preferences.</p>
         </div>
         <button 
           onClick={() => navigate(-1)}
@@ -122,10 +122,10 @@ const Settings = () => {
             <button 
               key={s.id}
               onClick={() => setActiveTab(s.id)}
-              className={`w-full text-left p-4 rounded-2xl border transition-all flex items-center gap-4 group ${activeTab === s.id ? 'bg-primary/10 border-primary shadow-sm' : 'bg-bg-surface/30 border-border hover:bg-bg-surface/50'}`}
+              className={`w-full text-left p-4 rounded-2xl border transition-all flex items-center gap-4 group ${activeTab === s.id ? 'bg-bg-surface border-brand-cyan/30' : 'bg-bg-surface/30 border-white/5 hover:bg-bg-surface/50'}`}
             >
-              <div className={`${activeTab === s.id ? 'text-primary' : 'text-muted group-hover:text-primary'} transition-colors`}>{s.icon}</div>
-              <span className={`text-sm font-bold ${activeTab === s.id ? 'text-primary' : 'text-muted group-hover:text-foreground'}`}>{s.title}</span>
+              <div className={`${activeTab === s.id ? 'text-brand-cyan' : 'text-muted group-hover:text-brand-cyan'} transition-colors`}>{s.icon}</div>
+              <span className={`text-sm font-bold ${activeTab === s.id ? 'text-white' : 'text-muted group-hover:text-white'}`}>{s.title}</span>
             </button>
           ))}
         </div>
@@ -137,7 +137,7 @@ const Settings = () => {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="glass p-8 rounded-[32px] border border-border space-y-6 shadow-premium"
+              className="glass p-8 rounded-[32px] border border-white/5 space-y-6"
             >
               <div className="flex items-center gap-3 border-b border-white/5 pb-4">
                 <div className="text-brand-cyan">{activeSection.icon}</div>
@@ -147,9 +147,9 @@ const Settings = () => {
               {activeSection.fields ? (
                 <div className="space-y-4">
                   {activeSection.fields.map(f => (
-                    <div key={f.label} className="flex justify-between items-center p-4 rounded-2xl bg-bg-surface/50 border border-border">
-                      <span className="text-[10px] font-mono text-muted uppercase tracking-widest font-black">{f.label}</span>
-                      <span className="text-sm font-bold text-foreground">{f.value}</span>
+                    <div key={f.label} className="flex justify-between items-center p-4 rounded-2xl bg-bg-deep/50 border border-white/5">
+                      <span className="text-[10px] font-mono text-muted uppercase tracking-widest">{f.label}</span>
+                      <span className="text-sm font-bold text-white">{f.value}</span>
                     </div>
                   ))}
                 </div>
@@ -161,12 +161,12 @@ const Settings = () => {
                      <div className="text-muted text-sm p-4 border border-white/5 rounded-2xl bg-bg-deep/50 text-center">No history found.</div>
                   ) : (
                     history.map(item => (
-                      <div key={item.id} className="p-4 rounded-2xl bg-bg-surface/50 border border-border flex justify-between items-center group hover:border-primary/40 transition-all">
+                      <div key={item.id} className="p-4 rounded-2xl bg-bg-deep/50 border border-white/5 flex justify-between items-center group hover:border-brand-cyan/20 transition-all">
                         <div>
                           <div className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'Recent'} &middot; {item.status}</div>
-                          <div className="text-sm font-bold text-foreground uppercase">{user.role === 'CARRIER' ? item.destination : (item.itemName || 'Order')}</div>
+                          <div className="text-sm font-bold text-white uppercase">{user.role === 'CARRIER' ? item.destination : (item.itemName || 'Order')}</div>
                         </div>
-                        <div className="text-primary font-black text-[10px] uppercase">
+                        <div className="text-brand-cyan font-bold text-[10px] uppercase">
                            {user.role === 'CARRIER' ? `₹${item.capacity * 10} est` : `₹${item.deliveryFee}`}
                         </div>
                       </div>
@@ -176,8 +176,8 @@ const Settings = () => {
               ) : (
                 <div className="space-y-2">
                   {activeSection.options.map(opt => (
-                    <div key={opt} className="flex items-center justify-between p-4 hover:bg-bg-surface/50 transition-colors rounded-2xl group border border-transparent hover:border-border">
-                      <span className="text-sm font-bold text-muted group-hover:text-foreground transition-colors">{opt}</span>
+                    <div key={opt} className="flex items-center justify-between p-4 hover:bg-white/[0.02] transition-colors rounded-2xl group">
+                      <span className="text-sm font-medium text-muted group-hover:text-white transition-colors">{opt}</span>
                       <ToggleSwitch 
                         enabled={toggles[opt]} 
                         onToggle={() => handleToggle(opt)} 
