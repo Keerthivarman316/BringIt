@@ -289,12 +289,16 @@ const AppRoutes = () => {
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
   const navigate = useNavigate();
 
+  // Keep a stable ref to the interval so handleLogout can clear it before redirecting
+  const profileIntervalRef = useState(null);
+
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') || 'dark';
     document.documentElement.setAttribute('data-theme', savedTheme);
 
     const fetchProfile = async () => {
-      // PROACTIVELY MIGRATE: Copy from localStorage if sessionStorage is empty for this tab session
+      // Migrate from localStorage → sessionStorage only if sessionStorage is empty
+      // (but skip if token is already known to be expired)
       const existingToken = localStorage.getItem('token');
       const existingUser = localStorage.getItem('user');
       if (existingToken && !sessionStorage.getItem('token')) {
@@ -317,14 +321,21 @@ const AppRoutes = () => {
         }
       } catch (err) {
         console.error('Profile refresh failed:', err);
-        if (err.response?.status === 401) handleLogout();
+        if (err.response?.status === 401) {
+          // Stop the polling interval FIRST to prevent further 401 loops
+          if (profileIntervalRef[0]) {
+            clearInterval(profileIntervalRef[0]);
+            profileIntervalRef[0] = null;
+          }
+          handleLogout();
+        }
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchProfile();
-    const profileInterval = setInterval(fetchProfile, 10000);
+    profileIntervalRef[0] = setInterval(fetchProfile, 10000);
 
     const socket = io('http://localhost:5000');
     socket.on('connect', () => setSocketStatus('CONNECTED'));
@@ -332,13 +343,16 @@ const AppRoutes = () => {
 
     return () => {
       socket.disconnect();
-      clearInterval(profileInterval);
+      if (profileIntervalRef[0]) clearInterval(profileIntervalRef[0]);
     };
   }, []);
 
   const handleLogout = () => {
+    // Clear BOTH storages so the expired token is not re-migrated on next load
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('user');
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     window.location.href = '/';
   };
 
